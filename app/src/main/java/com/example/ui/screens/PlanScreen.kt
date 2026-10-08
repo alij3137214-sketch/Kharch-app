@@ -1,11 +1,12 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,40 +17,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Calculate
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ElectricBolt
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Payment
-import androidx.compose.material.icons.filled.PieChart
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.HourglassEmpty
+import androidx.compose.material.icons.filled.People
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,26 +39,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.BillReminderEntity
 import com.example.data.model.BudgetEntity
 import com.example.data.model.ExpenseCategory
 import com.example.data.model.SavingsGoalEntity
-import com.example.ui.components.AffordabilitySimulator
+import com.example.domain.DAY_MS
+import com.example.domain.MoneyMath
 import com.example.ui.components.CategoryBudgetSettingDialog
-import com.example.ui.components.MonthlySpendingPlanCard
+import com.example.ui.components.FormSheet
+import com.example.ui.components.IconBadge
+import com.example.ui.components.KharchCard
+import com.example.ui.components.MoneyField
+import com.example.ui.components.PickChip
+import com.example.ui.components.PrimaryButton
+import com.example.ui.components.ScreenPadding
+import com.example.ui.components.SoftButton
+import com.example.ui.components.TextBox
+import com.example.ui.components.entrance
+import com.example.ui.components.formatRs
+import com.example.ui.components.pressable
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
-import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.TransferBlue
 import com.example.ui.theme.WarningAmber
-import com.example.ui.viewmodel.AffordabilityResult
 import com.example.ui.viewmodel.BudgetAlertStatus
-import com.example.ui.viewmodel.CategoryBudgetStatus
 import com.example.ui.viewmodel.KharchUiState
 import com.example.ui.viewmodel.KharchViewModel
 import java.text.SimpleDateFormat
@@ -86,22 +73,29 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
+private enum class PlanSheet { NONE, LIMIT, BILL, GOAL }
+
+/** Limits, bills and goals. Everything here is something the person decides. */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun PlanScreen(
     modifier: Modifier = Modifier,
     uiState: KharchUiState,
     viewModel: KharchViewModel,
-    onPlanExpense: ((itemName: String, amount: Double, category: String) -> Unit)? = null,
-    onCreateGoal: ((title: String, targetAmount: Double) -> Unit)? = null
+    onOpenCanBuy: () -> Unit = {},
+    onOpenWishList: () -> Unit = {},
+    onOpenUdhaar: () -> Unit = {},
+    onOpenCommittee: () -> Unit = {}
 ) {
-    // Dialog states
-    var showAddBudgetDialog by remember { mutableStateOf(false) }
+    var sheet by remember { mutableStateOf(PlanSheet.NONE) }
     var editingBudget by remember { mutableStateOf<BudgetEntity?>(null) }
-    var selectedBudgetFilter by remember { mutableStateOf("ALL") } // "ALL", "EXCEEDED", "WARNING", "SAFE"
-    var showAddGoalDialog by remember { mutableStateOf(false) }
-    var showAddBillDialog by remember { mutableStateOf(false) }
-    var depositGoalTarget by remember { mutableStateOf<SavingsGoalEntity?>(null) }
-    var showResetConfirmDialog by remember { mutableStateOf(false) }
+    var showNewBudget by remember { mutableStateOf(false) }
+    var depositTo by remember { mutableStateOf<SavingsGoalEntity?>(null) }
+
+    val limit = uiState.monthlyLimitOrNull
+    val spent = uiState.currentMonthTotalExpense
+    val statuses = uiState.categoryBudgetStatuses
+    val unpaidBills = uiState.billReminders.filter { !it.isPaid }.sortedBy { it.dueDate }
 
     LazyColumn(
         modifier = modifier
@@ -109,900 +103,422 @@ fun PlanScreen(
             .testTag("plan_screen"),
         contentPadding = PaddingValues(bottom = 120.dp)
     ) {
-        // Title Header
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp)
-            ) {
-                Text(
-                    text = "Financial Planning",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "Monthly Spending Limit & Budgets",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+            Column(Modifier.padding(horizontal = ScreenPadding, vertical = 14.dp)) {
+                Text("Plan", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text("Your limits, bills and goals", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
-        // --- 1. MONTHLY SPENDING LIMIT & REMAINING BUDGET TRACKER ---
+        // This month
         item {
-            MonthlySpendingPlanCard(
-                uiState = uiState,
-                onSetMonthlyLimit = { limit, threshold ->
-                    viewModel.setMonthlySpendingLimit(limit, threshold)
-                }
-            )
-            Spacer(modifier = Modifier.height(14.dp))
-        }
-
-        // --- 2. AFFORDABILITY SIMULATOR ---
-        item {
-            AffordabilitySimulator(
-                uiState = uiState,
-                viewModel = viewModel,
-                onPlanExpense = onPlanExpense,
-                onCreateGoal = { title, target ->
-                    if (onCreateGoal != null) {
-                        onCreateGoal(title, target)
+            Box(Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp).entrance(0)) {
+                KharchCard {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("This month", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                        SoftButton(if (limit == null) "Set a limit" else "Change", onClick = { sheet = PlanSheet.LIMIT }, color = EmeraldPrimary)
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    if (limit == null) {
+                        Text(
+                            "Choose how much you want to spend in one month. We will tell you how much you can spend each day.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     } else {
-                        showAddGoalDialog = true
+                        val left = limit - spent
+                        Text(
+                            text = if (left >= 0) formatRs(left) + " left" else formatRs(-left) + " over",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = if (left >= 0) MaterialTheme.colorScheme.onSurface else ExpenseRed
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        Bar((spent / limit).toFloat().coerceIn(0f, 1f), if (left < 0) ExpenseRed else EmeraldPrimary)
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "You spent ${formatRs(spent)} of ${formatRs(limit)}.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
-            )
-            Spacer(modifier = Modifier.height(24.dp))
+            }
         }
 
-        // --- 2. CATEGORY BUDGETS ---
+        // Limits for each kind
         item {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Category Budgets",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Button(
-                    onClick = { showAddBudgetDialog = true },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    modifier = Modifier.testTag("add_budget_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Budget",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("Set Limit", style = MaterialTheme.typography.labelMedium)
-                }
-            }
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(Modifier.height(14.dp))
+            SectionTitle("Limits for each kind", actionLabel = "Add", onAction = { showNewBudget = true })
         }
-
-        // Budget Health & Utilization Overview Card
-        item {
-            val totalBudget = uiState.budgets.sumOf { it.monthlyLimit }
-            val totalSpent = uiState.categoryBudgetStatuses.sumOf { it.currentSpent }
-            val exceededCount = uiState.exceededBudgets.size
-            val warningCount = uiState.warningBudgets.size
-            val safeCount = uiState.categoryBudgetStatuses.count { it.alertStatus == BudgetAlertStatus.SAFE }
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column {
-                            Text(
-                                text = "Monthly Budget Utilization",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = "Rs. ${String.format(Locale.getDefault(), "%,.0f", totalSpent)} / Rs. ${String.format(Locale.getDefault(), "%,.0f", totalBudget)}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-
-                        val overallPct = if (totalBudget > 0) ((totalSpent / totalBudget) * 100).toInt() else 0
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(
-                                    when {
-                                        exceededCount > 0 -> ExpenseRed.copy(alpha = 0.15f)
-                                        warningCount > 0 -> WarningAmber.copy(alpha = 0.15f)
-                                        else -> EmeraldPrimary.copy(alpha = 0.15f)
-                                    }
-                                )
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "$overallPct% Spent",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = when {
-                                    exceededCount > 0 -> ExpenseRed
-                                    warningCount > 0 -> WarningAmber
-                                    else -> EmeraldPrimary
-                                }
-                            )
-                        }
-                    }
-
-                    // Stat summary pills
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        // Exceeded Pill
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (exceededCount > 0) ExpenseRed.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "$exceededCount",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (exceededCount > 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Exceeded",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    color = if (exceededCount > 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Warning Pill
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (warningCount > 0) WarningAmber.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "$warningCount",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (warningCount > 0) WarningAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "Near Limit",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    color = if (warningCount > 0) WarningAmber else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        // Safe Pill
-                        Box(
-                            modifier = Modifier
-                                .weight(1f)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(if (safeCount > 0) EmeraldPrimary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface)
-                                .padding(vertical = 8.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(
-                                    text = "$safeCount",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (safeCount > 0) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = "On Track",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontSize = 10.sp,
-                                    color = if (safeCount > 0) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-
-                    // Filter chips row
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        listOf(
-                            "ALL" to "All (${uiState.categoryBudgetStatuses.size})",
-                            "EXCEEDED" to "🚨 Over ($exceededCount)",
-                            "WARNING" to "⚡ Alert ($warningCount)",
-                            "SAFE" to "🟢 Safe ($safeCount)"
-                        ).forEach { (filterKey, label) ->
-                            val isSelected = selectedBudgetFilter == filterKey
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedBudgetFilter = filterKey },
-                                label = { Text(label, style = MaterialTheme.typography.labelSmall, fontSize = 11.sp) },
-                                modifier = Modifier.weight(1f),
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                                    selectedLabelColor = MaterialTheme.colorScheme.primary
-                                )
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-        }
-
-        val filteredBudgets = uiState.categoryBudgetStatuses.filter {
-            when (selectedBudgetFilter) {
-                "EXCEEDED" -> it.alertStatus == BudgetAlertStatus.EXCEEDED
-                "WARNING" -> it.alertStatus == BudgetAlertStatus.WARNING
-                "SAFE" -> it.alertStatus == BudgetAlertStatus.SAFE
-                else -> true
-            }
-        }
-
-        if (filteredBudgets.isEmpty()) {
+        if (statuses.isEmpty()) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (uiState.budgets.isEmpty()) "No budgets set yet. Tap '+ Set Limit' to establish category spending limits."
-                        else "No budgets match the selected filter.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Text(
+                    "No limits yet. A limit for Food or Shopping helps you stop early.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)
+                )
             }
         } else {
-            items(filteredBudgets, key = { it.budget.id }) { item ->
-                val cat = ExpenseCategory.fromString(item.category)
-                val pctInt = (item.spentPercentage * 100).toInt()
-                val barColor = when (item.alertStatus) {
+            items(statuses.size) { i ->
+                val s = statuses[i]
+                val cat = ExpenseCategory.fromString(s.category)
+                val color = when (s.alertStatus) {
                     BudgetAlertStatus.EXCEEDED -> ExpenseRed
                     BudgetAlertStatus.WARNING -> WarningAmber
                     BudgetAlertStatus.SAFE -> EmeraldPrimary
                 }
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 5.dp)
-                        .clickable { editingBudget = item.budget }
-                        .testTag("budget_item_${item.category.lowercase()}"),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = when (item.alertStatus) {
-                            BudgetAlertStatus.EXCEEDED -> ExpenseRed.copy(alpha = 0.05f)
-                            BudgetAlertStatus.WARNING -> WarningAmber.copy(alpha = 0.05f)
-                            BudgetAlertStatus.SAFE -> MaterialTheme.colorScheme.surface
-                        }
-                    ),
-                    border = when (item.alertStatus) {
-                        BudgetAlertStatus.EXCEEDED -> androidx.compose.foundation.BorderStroke(1.2.dp, ExpenseRed.copy(alpha = 0.35f))
-                        BudgetAlertStatus.WARNING -> androidx.compose.foundation.BorderStroke(1.2.dp, WarningAmber.copy(alpha = 0.35f))
-                        BudgetAlertStatus.SAFE -> null
-                    }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(CircleShape)
-                                        .background(cat.color.copy(alpha = 0.15f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = cat.icon(),
-                                        contentDescription = null,
-                                        tint = cat.color,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                                Column {
-                                    Text(
-                                        text = item.category,
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Text(
-                                        text = "Limit: Rs. ${String.format(Locale.getDefault(), "%,.0f", item.monthlyLimit)} · Alert at ${item.alertThresholdPercent}%",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        fontSize = 11.sp
-                                    )
-                                }
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
+                    KharchCard(onClick = { editingBudget = s.budget }, contentPadding = 14.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            IconBadge(icon = cat.icon(), tint = cat.color, size = 38.dp, iconSize = 19.dp)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(s.category, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    text = if (s.alertStatus == BudgetAlertStatus.EXCEEDED) "${formatRs(s.overAmount)} over" else "${formatRs(s.remaining)} left",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (s.alertStatus == BudgetAlertStatus.EXCEEDED) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(
-                                            when (item.alertStatus) {
-                                                BudgetAlertStatus.EXCEEDED -> ExpenseRed
-                                                BudgetAlertStatus.WARNING -> WarningAmber
-                                                BudgetAlertStatus.SAFE -> EmeraldPrimary.copy(alpha = 0.15f)
-                                            }
-                                        )
-                                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                                ) {
-                                    Text(
-                                        text = when (item.alertStatus) {
-                                            BudgetAlertStatus.EXCEEDED -> "🚨 $pctInt%"
-                                            BudgetAlertStatus.WARNING -> "⚡ $pctInt%"
-                                            BudgetAlertStatus.SAFE -> "$pctInt%"
-                                        },
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = when (item.alertStatus) {
-                                            BudgetAlertStatus.EXCEEDED, BudgetAlertStatus.WARNING -> Color.White
-                                            BudgetAlertStatus.SAFE -> EmeraldPrimary
-                                        },
-                                        fontSize = 11.sp
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { editingBudget = item.budget },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Edit,
-                                        contentDescription = "Edit Budget",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { viewModel.deleteBudget(item.budget) },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Delete,
-                                        contentDescription = "Delete",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(16.dp)
-                                    )
-                                }
-                            }
+                            Text("${formatRs(s.currentSpent)} / ${formatRs(s.monthlyLimit)}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
-
-                        // Progress Indicator
-                        LinearProgressIndicator(
-                            progress = { item.spentPercentage.coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(7.dp)
-                                .clip(RoundedCornerShape(3.5.dp)),
-                            color = barColor,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-
-                        // Bottom status description
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "Spent: Rs. ${String.format(Locale.getDefault(), "%,.0f", item.currentSpent)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-
-                            Text(
-                                text = when (item.alertStatus) {
-                                    BudgetAlertStatus.EXCEEDED -> "Exceeded by Rs. ${String.format(Locale.getDefault(), "%,.0f", item.overAmount)}"
-                                    BudgetAlertStatus.WARNING -> "Rs. ${String.format(Locale.getDefault(), "%,.0f", item.remaining)} left (Warning zone)"
-                                    BudgetAlertStatus.SAFE -> "Rs. ${String.format(Locale.getDefault(), "%,.0f", item.remaining)} left"
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = if (item.alertStatus != BudgetAlertStatus.SAFE) FontWeight.Bold else FontWeight.Normal,
-                                color = barColor
-                            )
-                        }
+                        Spacer(Modifier.height(10.dp))
+                        Bar(s.spentPercentage.coerceIn(0f, 1f), color)
                     }
                 }
             }
         }
 
-        // --- 3. SAVINGS GOALS ---
+        // Bills
         item {
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Spacer(Modifier.height(18.dp))
+            SectionTitle("Bills", actionLabel = "Add", onAction = { sheet = PlanSheet.BILL })
+        }
+        if (unpaidBills.isEmpty()) {
+            item {
                 Text(
-                    text = "Savings Goals",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    "No bills to pay. Add rent, electricity or school fees and we will remind you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)
                 )
-
-                IconButton(
-                    onClick = { showAddGoalDialog = true },
-                    modifier = Modifier.testTag("add_savings_goal_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Goal",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
+        } else {
+            items(unpaidBills.size) { i ->
+                BillRow(unpaidBills[i], onPaid = { viewModel.markBillAsPaid(unpaidBills[i]) }, onDelete = { viewModel.deleteBillReminder(unpaidBills[i]) })
+            }
         }
 
+        // Goals
+        item {
+            Spacer(Modifier.height(18.dp))
+            SectionTitle("Piggy bank goals", actionLabel = "Add", onAction = { sheet = PlanSheet.GOAL })
+        }
         if (uiState.savingsGoals.isEmpty()) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No savings goals yet. Tap + to set one up.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                Text(
+                    "Saving for something? Add a goal and put money in a little at a time.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = ScreenPadding, vertical = 6.dp)
+                )
             }
         } else {
-            items(uiState.savingsGoals, key = { it.id }) { goal ->
-                val progress = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat() else 0f
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 5.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(goal.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                if (goal.targetDate.isNotBlank()) {
-                                    Text("Target: ${goal.targetDate}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
+            items(uiState.savingsGoals.size) { i ->
+                val g = uiState.savingsGoals[i]
+                val progress = (g.currentAmount / g.targetAmount).toFloat().coerceIn(0f, 1f)
+                Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
+                    KharchCard(contentPadding = 14.dp) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text(g.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                                Text(
+                                    "${formatRs(g.currentAmount)} of ${formatRs(g.targetAmount)}" + if (g.targetDate.isNotBlank()) " · by ${g.targetDate}" else "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                OutlinedButton(
-                                    onClick = { depositGoalTarget = goal },
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
-                                ) {
-                                    Text("+ Deposit", style = MaterialTheme.typography.labelSmall)
-                                }
-
-                                IconButton(
-                                    onClick = { viewModel.deleteSavingsGoal(goal) },
-                                    modifier = Modifier.size(28.dp)
-                                ) {
-                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                                }
+                            if (progress < 1f) {
+                                Text(
+                                    "Add money",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    modifier = Modifier
+                                        .pressable(pressedScale = 0.94f) { depositTo = g }
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(EmeraldPrimary)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                                )
+                            } else {
+                                Text("Done!", style = MaterialTheme.typography.labelLarge, color = EmeraldPrimary)
                             }
                         }
-
-                        LinearProgressIndicator(
-                            progress = { progress.coerceIn(0f, 1f) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(6.dp)
-                                .clip(RoundedCornerShape(3.dp)),
-                            color = IncomeGreen,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                "Saved: Rs. ${String.format(Locale.getDefault(), "%,.0f", goal.currentAmount)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = IncomeGreen
-                            )
-                            Text(
-                                "Target: Rs. ${String.format(Locale.getDefault(), "%,.0f", goal.targetAmount)} (${(progress * 100).toInt()}%)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                        Spacer(Modifier.height(10.dp))
+                        Bar(progress, EmeraldPrimary)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            SoftButton("Delete", onClick = { viewModel.deleteSavingsGoal(g) })
                         }
                     }
                 }
             }
         }
 
-        // --- 4. BILL REMINDERS ---
+        // Tools
         item {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(18.dp))
+            SectionTitle("Helpers")
+            Spacer(Modifier.height(6.dp))
+            Column(Modifier.padding(horizontal = ScreenPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ToolTile("Can I buy it?", "Check before you spend", Icons.Default.Calculate, EmeraldPrimary, onOpenCanBuy, Modifier.weight(1f))
+                    ToolTile("Wait list", "Wait, then decide", Icons.Default.HourglassEmpty, WarningAmber, onOpenWishList, Modifier.weight(1f))
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ToolTile("Udhaar", "Money given and taken", Icons.Default.People, TransferBlue, onOpenUdhaar, Modifier.weight(1f))
+                    ToolTile("Committee", "Kameti or BC", Icons.Default.Groups, Color(0xFFB59CF2), onOpenCommittee, Modifier.weight(1f))
+                }
+            }
+        }
+    }
+
+    when (sheet) {
+        PlanSheet.LIMIT -> LimitSheet(
+            currentLimit = limit,
+            currentThreshold = uiState.overallMonthlyBudget?.alertThresholdPercent ?: 80,
+            onSave = { amount, percent -> viewModel.setMonthlySpendingLimit(amount, percent); sheet = PlanSheet.NONE },
+            onDismiss = { sheet = PlanSheet.NONE }
+        )
+        PlanSheet.BILL -> BillSheet(
+            onSave = { title, amount, due, repeat ->
+                viewModel.addBillReminder(title, amount, due, "Bills", "Cash", repeat)
+                sheet = PlanSheet.NONE
+            },
+            onDismiss = { sheet = PlanSheet.NONE }
+        )
+        PlanSheet.GOAL -> GoalSheet(
+            onSave = { title, target, date -> viewModel.addSavingsGoal(title, target, date); sheet = PlanSheet.NONE },
+            onDismiss = { sheet = PlanSheet.NONE }
+        )
+        PlanSheet.NONE -> Unit
+    }
+
+    if (showNewBudget || editingBudget != null) {
+        val existing = editingBudget
+        CategoryBudgetSettingDialog(
+            existingBudget = existing,
+            currentSpent = existing?.let { uiState.getCategoryCurrentMonthSpent(it.category) } ?: 0.0,
+            onDismiss = { showNewBudget = false; editingBudget = null },
+            onSave = { category, amount, percent ->
+                viewModel.saveBudget(category, amount, percent)
+                showNewBudget = false
+                editingBudget = null
+            },
+            onDelete = { b ->
+                viewModel.deleteBudget(b)
+                editingBudget = null
+            }
+        )
+    }
+
+    depositTo?.let { goal ->
+        DepositSheet(goal = goal, onSave = { amount -> viewModel.depositToSavingsGoal(goal, amount); depositTo = null }, onDismiss = { depositTo = null })
+    }
+}
+
+@Composable
+internal fun SectionTitle(title: String, actionLabel: String? = null, onAction: (() -> Unit)? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenPadding),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+        if (actionLabel != null && onAction != null) {
             Row(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                    .pressable(pressedScale = 0.94f, onClick = onAction)
+                    .clip(RoundedCornerShape(12.dp))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Icon(Icons.Default.Add, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text(actionLabel, style = MaterialTheme.typography.labelLarge, color = EmeraldPrimary)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun Bar(progress: Float, color: Color) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(8.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+    ) {
+        Box(
+            Modifier
+                .fillMaxWidth(progress.coerceIn(0f, 1f))
+                .height(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+    }
+}
+
+@Composable
+private fun ToolTile(title: String, hint: String, icon: ImageVector, tint: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(22.dp)
+    Column(
+        modifier = modifier
+            .pressable(pressedScale = 0.97f, onClick = onClick)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), shape)
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        IconBadge(icon = icon, tint = tint, size = 38.dp, iconSize = 19.dp)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun BillRow(bill: BillReminderEntity, onPaid: () -> Unit, onDelete: () -> Unit) {
+    val days = ((MoneyMath.startOfDay(bill.dueDate) - MoneyMath.startOfDay(System.currentTimeMillis())) / DAY_MS).toInt()
+    val late = days < 0
+    Box(Modifier.padding(horizontal = ScreenPadding, vertical = 5.dp)) {
+        KharchCard(contentPadding = 14.dp) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(bill.title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurface)
+                    Text(
+                        text = when {
+                            late -> "Late by ${-days} ${if (-days == 1) "day" else "days"}"
+                            days == 0 -> "Due today"
+                            days == 1 -> "Due tomorrow"
+                            else -> "Due ${SimpleDateFormat("d MMM", Locale.getDefault()).format(Date(bill.dueDate))}"
+                        } + " · " + formatRs(bill.amount) + if (bill.repeatMonthly) " · every month" else "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (late) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 Text(
-                    text = "Upcoming Bills",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    "Paid",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .pressable(pressedScale = 0.94f, onClick = onPaid)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(EmeraldPrimary)
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
                 )
-
-                IconButton(
-                    onClick = { showAddBillDialog = true },
-                    modifier = Modifier.testTag("add_bill_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Add Bill",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (uiState.billReminders.isEmpty()) {
-            item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No bills to pay! Tap + to add recurring bills.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        } else {
-            items(uiState.billReminders, key = { it.id }) { bill ->
-                val daysLeft = ((bill.dueDate - System.currentTimeMillis()) / 86400000L).coerceAtLeast(0)
-                val statusText = when {
-                    bill.isPaid -> "Paid"
-                    daysLeft == 0L -> "Due today"
-                    daysLeft == 1L -> "Due tomorrow"
-                    else -> "Due in $daysLeft days"
-                }
-
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 5.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = if (bill.isPaid) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        else MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .clip(CircleShape)
-                                    .background(if (bill.isPaid) IncomeGreen.copy(alpha = 0.15f) else ExpenseRed.copy(alpha = 0.12f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (bill.isPaid) Icons.Default.Check else Icons.Default.ElectricBolt,
-                                    contentDescription = null,
-                                    tint = if (bill.isPaid) IncomeGreen else ExpenseRed,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            Column {
-                                Text(bill.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text(
-                                    text = "$statusText · Rs. ${String.format(Locale.getDefault(), "%,.0f", bill.amount)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (bill.isPaid) IncomeGreen else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (!bill.isPaid) {
-                                Button(
-                                    onClick = { viewModel.markBillAsPaid(bill) },
-                                    shape = RoundedCornerShape(10.dp),
-                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
-                                    modifier = Modifier.height(34.dp)
-                                ) {
-                                    Text("Mark Paid", style = MaterialTheme.typography.labelSmall)
-                                }
-                            }
-
-                            IconButton(
-                                onClick = { viewModel.deleteBillReminder(bill) },
-                                modifier = Modifier.size(28.dp)
-                            ) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // --- 5. DATA SETTINGS / SAMPLE DATA ---
-        item {
-            Spacer(modifier = Modifier.height(28.dp))
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text("Data Management", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Need to restart or load example transactions?", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-
-                    OutlinedButton(
-                        onClick = { showResetConfirmDialog = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Reset & Seed Example Data")
-                    }
-                }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                SoftButton("Delete", onClick = onDelete)
             }
         }
     }
+}
 
-    // --- DIALOGS ---
-
-    // Add / Edit Budget Dialog
-    if (showAddBudgetDialog || editingBudget != null) {
-        val targetBudget = editingBudget
-        val currentSpent = if (targetBudget != null) {
-            uiState.getCategoryCurrentMonthSpent(targetBudget.category)
-        } else {
-            0.0
+@Composable
+private fun LimitSheet(currentLimit: Double?, currentThreshold: Int, onSave: (Double, Int) -> Unit, onDismiss: () -> Unit) {
+    var amount by remember { mutableStateOf(currentLimit?.let { if (it % 1 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
+    var percent by remember { mutableStateOf(currentThreshold) }
+    val value = amount.toDoubleOrNull() ?: 0.0
+    FormSheet(title = "Monthly limit", subtitle = "How much do you want to spend in one month?", onDismiss = onDismiss) {
+        MoneyField(value = amount, onValueChange = { amount = it }, label = "Limit for one month")
+        Text("Warn me when I have used", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(70, 80, 90).forEach { p -> PickChip("$p%", percent == p, { percent = p }) }
         }
+        PrimaryButton("Save", onClick = { onSave(value, percent) }, enabled = value > 0)
+    }
+}
 
-        CategoryBudgetSettingDialog(
-            existingBudget = targetBudget,
-            currentSpent = currentSpent,
-            onDismiss = {
-                showAddBudgetDialog = false
-                editingBudget = null
-            },
-            onSave = { category, limit, thresholdPercent ->
-                viewModel.saveBudget(category, limit, thresholdPercent)
-                showAddBudgetDialog = false
-                editingBudget = null
-            },
-            onDelete = { budget ->
-                viewModel.deleteBudget(budget)
-                showAddBudgetDialog = false
-                editingBudget = null
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun BillSheet(onSave: (String, Double, Long, Boolean) -> Unit, onDismiss: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var dueInDays by remember { mutableStateOf(7) }
+    var repeat by remember { mutableStateOf(true) }
+    val value = amount.toDoubleOrNull() ?: 0.0
+    FormSheet(title = "Add a bill", subtitle = "We will remind you before it is due.", onDismiss = onDismiss) {
+        TextBox(value = title, onValueChange = { title = it }, label = "Name", placeholder = "Rent, electricity, fees")
+        MoneyField(value = amount, onValueChange = { amount = it }, label = "How much")
+        Text("When is it due?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("Today" to 0, "Tomorrow" to 1, "In 3 days" to 3, "In a week" to 7, "In 2 weeks" to 14, "In a month" to 30).forEach { (label, d) ->
+                PickChip(label, dueInDays == d, { dueInDays = d })
             }
+        }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Every month", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Switch(checked = repeat, onCheckedChange = { repeat = it }, colors = SwitchDefaults.colors(checkedTrackColor = EmeraldPrimary, checkedThumbColor = MaterialTheme.colorScheme.onPrimary))
+        }
+        PrimaryButton(
+            "Add bill",
+            onClick = {
+                val due = Calendar.getInstance().apply {
+                    add(Calendar.DAY_OF_YEAR, dueInDays)
+                    set(Calendar.HOUR_OF_DAY, 9)
+                    set(Calendar.MINUTE, 0)
+                }.timeInMillis
+                onSave(title.ifBlank { "Bill" }, value, due, repeat)
+            },
+            enabled = value > 0
         )
     }
+}
 
-    // Add Goal Dialog
-    if (showAddGoalDialog) {
-        var goalTitle by remember { mutableStateOf("") }
-        var goalTargetText by remember { mutableStateOf("") }
-        var goalDate by remember { mutableStateOf("Dec 2026") }
-
-        AlertDialog(
-            onDismissRequest = { showAddGoalDialog = false },
-            title = { Text("Create Savings Goal") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = goalTitle, onValueChange = { goalTitle = it }, label = { Text("Goal Title (e.g. New Laptop)") }, singleLine = true)
-                    OutlinedTextField(value = goalTargetText, onValueChange = { if (it.all { ch -> ch.isDigit() || ch == '.' }) goalTargetText = it }, label = { Text("Target Amount (Rs.)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-                    OutlinedTextField(value = goalDate, onValueChange = { goalDate = it }, label = { Text("Target Date (e.g. Nov 2026)") }, singleLine = true)
-                }
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun GoalSheet(onSave: (String, Double, String) -> Unit, onDismiss: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var months by remember { mutableStateOf(6) }
+    val value = amount.toDoubleOrNull() ?: 0.0
+    FormSheet(title = "New goal", subtitle = "What are you saving for?", onDismiss = onDismiss) {
+        TextBox(value = title, onValueChange = { title = it }, label = "Name", placeholder = "Phone, trip, emergency")
+        MoneyField(value = amount, onValueChange = { amount = it }, label = "How much do you need")
+        Text("In how many months?", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf(3, 6, 12, 24).forEach { m -> PickChip("$m months", months == m, { months = m }) }
+        }
+        if (value > 0) {
+            Text(
+                "Put aside about ${formatRs(value / months)} each month.",
+                style = MaterialTheme.typography.titleSmall,
+                color = EmeraldPrimary
+            )
+        }
+        PrimaryButton(
+            "Create goal",
+            onClick = {
+                val by = Calendar.getInstance().apply { add(Calendar.MONTH, months) }
+                onSave(title.ifBlank { "My goal" }, value, SimpleDateFormat("MMM yyyy", Locale.getDefault()).format(by.time))
             },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val target = goalTargetText.toDoubleOrNull() ?: 0.0
-                        if (goalTitle.isNotBlank() && target > 0) {
-                            viewModel.addSavingsGoal(goalTitle, target, goalDate)
-                            showAddGoalDialog = false
-                        }
-                    }
-                ) {
-                    Text("Create Goal")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddGoalDialog = false }) { Text("Cancel") }
-            }
+            enabled = value > 0
         )
     }
+}
 
-    // Deposit Goal Dialog
-    if (depositGoalTarget != null) {
-        val goal = depositGoalTarget!!
-        var depositText by remember { mutableStateOf("") }
-
-        AlertDialog(
-            onDismissRequest = { depositGoalTarget = null },
-            title = { Text("Deposit to ${goal.title}") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Current saved: Rs. ${String.format(Locale.getDefault(), "%,.0f", goal.currentAmount)} of Rs. ${String.format(Locale.getDefault(), "%,.0f", goal.targetAmount)}")
-                    OutlinedTextField(
-                        value = depositText,
-                        onValueChange = { if (it.all { ch -> ch.isDigit() || ch == '.' }) depositText = it },
-                        label = { Text("Deposit Amount (Rs.)") },
-                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                        singleLine = true
-                    )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amt = depositText.toDoubleOrNull() ?: 0.0
-                        if (amt > 0) {
-                            viewModel.depositToSavingsGoal(goal, amt)
-                            depositGoalTarget = null
-                        }
-                    }
-                ) {
-                    Text("Add Deposit")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { depositGoalTarget = null }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Add Bill Dialog
-    if (showAddBillDialog) {
-        var billTitle by remember { mutableStateOf("") }
-        var billAmountText by remember { mutableStateOf("") }
-        var billDaysAhead by remember { mutableStateOf("7") }
-
-        AlertDialog(
-            onDismissRequest = { showAddBillDialog = false },
-            title = { Text("Add Bill Reminder") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(value = billTitle, onValueChange = { billTitle = it }, label = { Text("Bill Title (e.g. Internet Bill)") }, singleLine = true)
-                    OutlinedTextField(value = billAmountText, onValueChange = { if (it.all { ch -> ch.isDigit() || ch == '.' }) billAmountText = it }, label = { Text("Amount (Rs.)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
-                    OutlinedTextField(value = billDaysAhead, onValueChange = { if (it.all { ch -> ch.isDigit() }) billDaysAhead = it }, label = { Text("Due in (Days)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val amt = billAmountText.toDoubleOrNull() ?: 0.0
-                        val days = billDaysAhead.toLongOrNull() ?: 7L
-                        if (billTitle.isNotBlank() && amt > 0) {
-                            val dueDate = System.currentTimeMillis() + (days * 86400000L)
-                            viewModel.addBillReminder(billTitle, amt, dueDate, "Bills", "Bank")
-                            showAddBillDialog = false
-                        }
-                    }
-                ) {
-                    Text("Add Bill")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showAddBillDialog = false }) { Text("Cancel") }
-            }
-        )
-    }
-
-    // Reset Confirm Dialog
-    if (showResetConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetConfirmDialog = false },
-            title = { Text("Reset to Sample Data") },
-            text = { Text("This will reload realistic sample Pakistani Rupee (Rs.) transactions, budgets, goals, and upcoming bills.") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.resetData()
-                        showResetConfirmDialog = false
-                    }
-                ) {
-                    Text("Reset")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetConfirmDialog = false }) { Text("Cancel") }
-            }
-        )
+@Composable
+private fun DepositSheet(goal: SavingsGoalEntity, onSave: (Double) -> Unit, onDismiss: () -> Unit) {
+    var amount by remember { mutableStateOf("") }
+    val value = amount.toDoubleOrNull() ?: 0.0
+    val room = (goal.targetAmount - goal.currentAmount).coerceAtLeast(0.0)
+    FormSheet(title = goal.title, subtitle = "${formatRs(room)} more to reach your goal.", onDismiss = onDismiss) {
+        MoneyField(value = amount, onValueChange = { amount = it }, label = "How much are you adding")
+        PrimaryButton("Add to goal", onClick = { onSave(value) }, enabled = value > 0)
     }
 }

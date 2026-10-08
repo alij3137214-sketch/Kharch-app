@@ -202,8 +202,7 @@ fun ExpenseBudgetWarningCard(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = if (isExceeded) "⚠️ Category Budget Overrun Warning"
-                    else "⚡ Approaching Budget Alert Threshold",
+                    text = if (isExceeded) "Over your limit" else "Almost at your limit",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = accentColor
@@ -211,11 +210,11 @@ fun ExpenseBudgetWarningCard(
 
                 Text(
                     text = if (impact.isAlreadyExceeded) {
-                        "Your ${impact.category} budget of Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.monthlyLimit)} is already exceeded. Adding this will increase spending to Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.projectedSpent)} ($projectedPctInt%)."
+                        "You already used all of your ${impact.category} limit. This makes it $projectedPctInt%."
                     } else if (impact.willExceed) {
-                        "This Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.addedAmount)} expense will exceed your ${impact.category} budget by Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.excessAmount)} (Total: Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.projectedSpent)} / ${String.format(Locale.getDefault(), "%,.0f", impact.monthlyLimit)})."
+                        "This is Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.excessAmount)} more than your ${impact.category} limit."
                     } else {
-                        "This expense brings ${impact.category} to $projectedPctInt% of your Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.monthlyLimit)} monthly limit. Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.remainingAfter)} will remain."
+                        "After this, $projectedPctInt% of your ${impact.category} limit is used. Rs. ${String.format(Locale.getDefault(), "%,.0f", impact.remainingAfter)} is left."
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
@@ -262,7 +261,7 @@ fun BudgetExceededConfirmDialog(
         },
         title = {
             Text(
-                text = "Exceeds $category Budget",
+                text = "Over your $category limit",
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleLarge
             )
@@ -270,7 +269,7 @@ fun BudgetExceededConfirmDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = "Logging this expense of Rs. ${String.format(Locale.getDefault(), "%,.0f", addedAmount)} will exceed your monthly $category spending cap by Rs. ${String.format(Locale.getDefault(), "%,.0f", excessAmount)}.",
+                    text = "This will be Rs. ${String.format(Locale.getDefault(), "%,.0f", excessAmount)} more than your limit.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Card(
@@ -287,20 +286,20 @@ fun BudgetExceededConfirmDialog(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Monthly Budget Limit:", style = MaterialTheme.typography.bodySmall)
+                            Text("Your limit", style = MaterialTheme.typography.bodySmall)
                             Text("Rs. ${String.format(Locale.getDefault(), "%,.0f", monthlyLimit)}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall)
                         }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Projected Total Spent:", style = MaterialTheme.typography.bodySmall)
+                            Text("You will have spent", style = MaterialTheme.typography.bodySmall)
                             Text("Rs. ${String.format(Locale.getDefault(), "%,.0f", projectedTotal)}", fontWeight = FontWeight.Bold, color = ExpenseRed, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
                 Text(
-                    text = "Are you sure you want to log this expense?",
+                    text = "Do you still want to save it?",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -312,7 +311,7 @@ fun BudgetExceededConfirmDialog(
                 colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Log Anyway")
+                Text("Save anyway")
             }
         },
         dismissButton = {
@@ -320,7 +319,7 @@ fun BudgetExceededConfirmDialog(
                 onClick = onAdjust,
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Adjust Amount")
+                Text("Change amount")
             }
         }
     )
@@ -366,7 +365,7 @@ fun CategoryBudgetSettingDialog(
                     tint = EmeraldPrimary
                 )
                 Text(
-                    text = if (existingBudget != null) "Edit Category Budget" else "Set Category Budget",
+                    text = if (existingBudget != null) "Change limit" else "New limit",
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -380,7 +379,7 @@ fun CategoryBudgetSettingDialog(
             ) {
                 // Category Picker
                 Text(
-                    text = "Select Category",
+                    text = "What kind of spending?",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
@@ -426,7 +425,7 @@ fun CategoryBudgetSettingDialog(
                 // Monthly Limit Input
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(
-                        text = "Monthly Spending Limit",
+                        text = "Limit for one month",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -500,7 +499,7 @@ fun CategoryBudgetSettingDialog(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Current Month Spent:",
+                                text = "Spent this month:",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -522,7 +521,7 @@ fun CategoryBudgetSettingDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Budget Utilization:",
+                                    text = "Used so far:",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -547,7 +546,7 @@ fun CategoryBudgetSettingDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Warning Alert Threshold",
+                            text = "Warn me at",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -615,7 +614,7 @@ fun CategoryBudgetSettingDialog(
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary)
             ) {
-                Text("Save Budget")
+                Text("Save")
             }
         },
         dismissButton = {

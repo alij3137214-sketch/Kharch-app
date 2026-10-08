@@ -34,8 +34,7 @@ fun QuickActions(
     modifier: Modifier = Modifier,
     onExpenseClick: () -> Unit,
     onIncomeClick: () -> Unit,
-    onTransferClick: () -> Unit,
-    onScanReceiptClick: () -> Unit
+    onTransferClick: () -> Unit
 ) {
     Row(
         modifier = modifier
@@ -43,11 +42,9 @@ fun QuickActions(
             .padding(horizontal = ScreenPadding, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        QuickActionButton("Expense", Icons.Default.Remove, ExpenseRed, "quick_action_expense", onExpenseClick, Modifier.weight(1f))
-        QuickActionButton("Income", Icons.Default.Add, IncomeGreen, "quick_action_income", onIncomeClick, Modifier.weight(1f))
-        QuickActionButton("Transfer", Icons.Default.SwapHoriz, TransferBlue, "quick_action_transfer", onTransferClick, Modifier.weight(1f))
-        QuickActionButton("Scan", Icons.Default.CameraAlt, MaterialTheme.colorScheme.onSurface, "quick_action_scan_receipt", onScanReceiptClick, Modifier.weight(1f))
-    }
+        QuickActionButton("I spent", Icons.Default.Remove, ExpenseRed, "quick_action_expense", onExpenseClick, Modifier.weight(1f))
+        QuickActionButton("I got money", Icons.Default.Add, IncomeGreen, "quick_action_income", onIncomeClick, Modifier.weight(1f))
+        QuickActionButton("Move money", Icons.Default.SwapHoriz, TransferBlue, "quick_action_transfer", onTransferClick, Modifier.weight(1f))    }
 }
 
 @Composable

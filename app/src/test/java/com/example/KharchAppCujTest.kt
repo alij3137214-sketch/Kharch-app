@@ -13,7 +13,8 @@ import com.example.data.model.TransactionType
 import com.example.data.repository.KharchRepository
 import com.example.ui.viewmodel.BudgetAlertStatus
 import com.example.ui.viewmodel.KharchUiState
-import com.example.ui.viewmodel.KharchViewModel
+import com.example.domain.MoneyMath
+import com.example.domain.PeriodKind
 import com.example.ui.viewmodel.SimVerdict
 import com.example.util.CsvExporter
 import kotlinx.coroutines.flow.first
@@ -536,62 +537,33 @@ class KharchAppCujTest {
     }
 
     @Test
-    fun cuj_rechartsDailySpendingBarChart_last30DaysTrend() = runBlocking {
-        val now = System.currentTimeMillis()
-        // Day 0 (today)
+    fun cuj_monthlyCharts_dailyBarsAndBiggestSpend() = runBlocking {
+        // A fixed "today" (20 October 2026, noon) so the test gives the same answer on every day.
+        val today = Calendar.getInstance().apply { clear(); set(2026, Calendar.OCTOBER, 20, 12, 0) }.timeInMillis
+        val day = 86_400_000L
         repository.insertTransaction(
-            TransactionEntity(
-                title = "Coffee & Lunch",
-                amount = 2500.0,
-                type = TransactionType.EXPENSE.name,
-                category = "Food",
-                paymentMethod = "Card",
-                timestamp = now
-            )
+            TransactionEntity(title = "Coffee & Lunch", amount = 2500.0, type = TransactionType.EXPENSE.name, category = "Food", paymentMethod = "Card", timestamp = today)
         )
-        // 5 days ago (peak spike)
         repository.insertTransaction(
-            TransactionEntity(
-                title = "Electronics Store",
-                amount = 45000.0,
-                type = TransactionType.EXPENSE.name,
-                category = "Shopping",
-                paymentMethod = "Card",
-                timestamp = now - (5 * 86400000L)
-            )
+            TransactionEntity(title = "Electronics Store", amount = 45000.0, type = TransactionType.EXPENSE.name, category = "Shopping", paymentMethod = "Card", timestamp = today - 5 * day)
         )
-        // 10 days ago
         repository.insertTransaction(
-            TransactionEntity(
-                title = "Utility Bills",
-                amount = 8000.0,
-                type = TransactionType.EXPENSE.name,
-                category = "Bills",
-                paymentMethod = "Bank",
-                timestamp = now - (10 * 86400000L)
-            )
+            TransactionEntity(title = "Utility Bills", amount = 8000.0, type = TransactionType.EXPENSE.name, category = "Bills", paymentMethod = "Bank", timestamp = today - 10 * day)
         )
 
-        // Initialize viewModel with fetched transactions
-        val allTx = repository.allTransactions.first()
-        val viewModel = KharchViewModel(repository)
-        val trend = viewModel.getThirtyDaySpendingTrend(allTx)
+        val all = repository.allTransactions.first()
+        val range = MoneyMath.periodRange(PeriodKind.MONTH, 0, today)
+        val summary = MoneyMath.summarize(all, range, today)
 
-        // 1. Must contain exactly 30 daily data points
-        assertEquals(30, trend.dailyPoints.size)
-
-        // 2. Total amount must match sum of expenses
-        assertEquals(55500.0, trend.totalAmount, 0.01)
-
-        // 3. Daily average must be total / 30
-        assertEquals(55500.0 / 30.0, trend.averageDaily, 0.01)
-
-        // 4. Peak day must be the 45,000 electronics expense
-        assertNotNull(trend.peakDay)
-        assertEquals(45000.0, trend.peakDay?.amount ?: 0.0, 0.01)
-
-        // 5. Pattern insight should describe pattern or outlier
-        assertNotNull(trend.patternInsight)
-        assertTrue(trend.patternInsight.isNotEmpty())
+        // One bar for each of the 31 days of October
+        assertEquals(31, summary.bars.size)
+        assertEquals(55500.0, summary.spent, 0.01)
+        // The biggest bar and the biggest spend are the 45,000 electronics
+        assertEquals(45000.0, summary.busiestBar?.amount ?: 0.0, 0.01)
+        assertEquals(45000.0, summary.biggestExpense?.amount ?: 0.0, 0.01)
+        // Categories are sorted from biggest to smallest
+        assertEquals("Shopping", summary.byCategory.first().category)
+        // 20 days had passed (1st to 19th) before today; 3 of them... only days after the first record count.
+        assertTrue(summary.noSpendDays in 0..19)
     }
 }

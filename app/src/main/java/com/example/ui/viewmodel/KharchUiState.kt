@@ -2,6 +2,14 @@ package com.example.ui.viewmodel
 
 import com.example.data.model.BillReminderEntity
 import com.example.data.model.BudgetEntity
+import com.example.data.model.CommitteeEntity
+import com.example.data.model.DebtEntity
+import com.example.data.model.WishItemEntity
+import com.example.data.profile.UserProfile
+import com.example.domain.AccountBalance
+import com.example.domain.DailyAllowance
+import com.example.domain.MoneyMath
+import com.example.domain.PeriodKind
 import com.example.data.model.SavingsGoalEntity
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
@@ -172,14 +180,18 @@ data class KharchUiState(
     val isBalanceHidden: Boolean = false,
     val searchQuery: String = "",
     val selectedFilterType: String = "ALL", // "ALL", "EXPENSE", "INCOME", "TRANSFER"
-    val selectedSpendingPeriod: String = "Week", // "Today", "Week", "Month", "Year"
+    val periodKind: PeriodKind = PeriodKind.MONTH,
+    /** 0 is the current period, -1 the one before it, and so on. */
+    val periodOffset: Int = 0,
     val selectedCategoryFilter: String? = null,
-    val selectedReportPeriod: String = "Daily", // "Daily", "Weekly", "Monthly", "Yearly"
-    val reportDateOffset: Int = 0, // for navigating days/weeks/months
     val affordabilityBasisType: String = "INCOME", // "INCOME", "BUDGETS", "CUSTOM"
     val affordabilityCustomBasis: Double = 75000.0,
     val disabledFixedCostIds: Set<Long> = emptySet(),
-    val customFixedCosts: List<FixedCostItem> = emptyList()
+    val customFixedCosts: List<FixedCostItem> = emptyList(),
+    val wishItems: List<WishItemEntity> = emptyList(),
+    val debts: List<DebtEntity> = emptyList(),
+    val committees: List<CommitteeEntity> = emptyList(),
+    val profile: UserProfile = UserProfile()
 ) {
     val totalIncome: Double
         get() = transactions.filter { it.type == TransactionType.INCOME.name }.sumOf { it.amount }
@@ -187,9 +199,29 @@ data class KharchUiState(
     val totalExpense: Double
         get() = transactions.filter { it.type == TransactionType.EXPENSE.name }.sumOf { it.amount }
 
-    // Available Total balance
+    /** Money you have now. It can be below zero if more was spent than came in. */
     val totalBalance: Double
-        get() = (totalIncome - totalExpense).coerceAtLeast(0.0)
+        get() = totalIncome - totalExpense
+
+    /** Money in each place: Cash, Bank, Easypaisa... Transfers move money between them. */
+    val accounts: List<AccountBalance>
+        get() = MoneyMath.accountBalances(transactions)
+
+    /** The monthly limit the person set, or null if they have not set one yet. */
+    val monthlyLimitOrNull: Double?
+        get() {
+            overallMonthlyBudget?.let { return it.monthlyLimit }
+            val catTotal = budgets.filter { !it.category.equals("OVERALL", true) && !it.category.equals("TOTAL", true) }
+                .sumOf { it.monthlyLimit }
+            return catTotal.takeIf { it > 0 }
+        }
+
+    val hasMonthlyLimit: Boolean
+        get() = monthlyLimitOrNull != null
+
+    /** How much can be spent today. Null until a monthly limit exists. */
+    val dailyAllowance: DailyAllowance?
+        get() = monthlyLimitOrNull?.let { MoneyMath.dailyAllowance(transactions, billReminders, it) }
 
     val upcomingBill: BillReminderEntity?
         get() = billReminders
@@ -199,8 +231,7 @@ data class KharchUiState(
     // Budget available percentage
     val availableBudgetPercentage: Int
         get() {
-            val totalMonthlyBudget = effectiveMonthlySpendingLimit
-            if (totalMonthlyBudget <= 0) return 75
+            val totalMonthlyBudget = monthlyLimitOrNull ?: return 100
             val currentMonthExpense = getCurrentMonthExpense()
             val remaining = (totalMonthlyBudget - currentMonthExpense).coerceAtLeast(0.0)
             return ((remaining / totalMonthlyBudget) * 100).toInt().coerceIn(0, 100)
@@ -405,8 +436,11 @@ data class KharchUiState(
         val maxDays = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
         val daysRemaining = (maxDays - currentDay + 1).coerceAtLeast(1)
 
-        val totalIncomeAmt = transactions.filter { it.type == TransactionType.INCOME.name }.sumOf { it.amount }
-        val totalCategoryBudgets = budgets.sumOf { it.monthlyLimit }
+        // "Money in" for one month: what the person said they earn, or what came in this month.
+        val monthStartForIncome = MoneyMath.startOfMonth(System.currentTimeMillis())
+        val totalIncomeAmt = if (profile.monthlyIncome > 0) profile.monthlyIncome
+        else transactions.filter { it.type == TransactionType.INCOME.name && it.timestamp >= monthStartForIncome }.sumOf { it.amount }
+        val totalCategoryBudgets = budgets.filter { !it.category.equals("OVERALL", true) && !it.category.equals("TOTAL", true) }.sumOf { it.monthlyLimit }
 
         val basis = when (basisType) {
             "BUDGETS" -> if (totalCategoryBudgets > 0) totalCategoryBudgets else 60000.0
@@ -427,12 +461,15 @@ data class KharchUiState(
         }
         val allFixedItems = defaultBills + additionalFixedCosts
 
+        // Bills that are already paid are in 'spent' now, so they are not counted again as 'must pay'.
         val activeFixedCostsTotal = allFixedItems
-            .filter { it.isEnabled }
+            .filter { it.isEnabled && !it.isPaid }
             .sumOf { it.amount }
 
         val currentMonthExpenses = getCurrentMonthExpense()
-        val paidBillsInMonth = billReminders.filter { it.isPaid }.sumOf { it.amount }
+        val monthStartMs = MoneyMath.startOfMonth(System.currentTimeMillis())
+        val nextMonthStartMs = Calendar.getInstance().apply { timeInMillis = monthStartMs; add(Calendar.MONTH, 1) }.timeInMillis
+        val paidBillsInMonth = billReminders.filter { it.isPaid && it.dueDate in monthStartMs until nextMonthStartMs }.sumOf { it.amount }
         val variableSpent = (currentMonthExpenses - paidBillsInMonth).coerceAtLeast(0.0)
 
         val remainingDiscretionary = basis - activeFixedCostsTotal - variableSpent

@@ -84,7 +84,9 @@ import com.example.ui.components.pressable
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.TransferBlue
+import com.example.domain.MoneyMath
 import com.example.ui.viewmodel.KharchViewModel
+import com.example.util.ReceiptStore
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -103,6 +105,7 @@ fun AddTransactionScreen(
     onCancel: () -> Unit = {}
 ) {
     val coroutineScope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     var selectedTab by remember {
         mutableStateOf(
@@ -142,7 +145,9 @@ fun AddTransactionScreen(
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
-    ) { uri: Uri? -> if (uri != null) receiptUri = uri.toString() }
+    ) { uri: Uri? ->
+        if (uri != null) receiptUri = ReceiptStore.save(context, uri) ?: uri.toString()
+    }
 
     val parsedAmount = amountText.toDoubleOrNull() ?: 0.0
     val canSave = parsedAmount > 0.0
@@ -234,10 +239,10 @@ fun AddTransactionScreen(
                 ) {
                     Text(
                         text = when {
-                            editingTransaction != null -> "Edit record"
-                            selectedTab == TransactionType.EXPENSE -> "New expense"
-                            selectedTab == TransactionType.INCOME -> "New income"
-                            else -> "New transfer"
+                            editingTransaction != null -> "Change this"
+                            selectedTab == TransactionType.EXPENSE -> "I spent"
+                            selectedTab == TransactionType.INCOME -> "I got money"
+                            else -> "Move money"
                         },
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onSurface
@@ -305,6 +310,18 @@ fun AddTransactionScreen(
                         )
                     }
                 }
+                if (selectedTab == TransactionType.EXPENSE) {
+                    MoneyMath.priceInWork(parsedAmount, uiState.profile)?.let { work ->
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "That is $work.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(20.dp))
             }
 
@@ -317,7 +334,7 @@ fun AddTransactionScreen(
 
             if (selectedTab != TransactionType.TRANSFER) {
                 item {
-                    FieldLabel(if (selectedTab == TransactionType.EXPENSE) "What was it for?" else "Where did it come from?")
+                    FieldLabel(if (selectedTab == TransactionType.EXPENSE) "What was it for?" else "Who gave it?")
                     OutlinedTextField(
                         value = titleText,
                         onValueChange = { titleText = it },
@@ -337,7 +354,7 @@ fun AddTransactionScreen(
 
             if (selectedTab == TransactionType.EXPENSE) {
                 item {
-                    FieldLabel("Category")
+                    FieldLabel("What kind?")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -356,7 +373,7 @@ fun AddTransactionScreen(
                 }
             } else if (selectedTab == TransactionType.INCOME) {
                 item {
-                    FieldLabel("Income source")
+                    FieldLabel("Where did it come from?")
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -376,7 +393,7 @@ fun AddTransactionScreen(
             }
 
             item {
-                FieldLabel(if (selectedTab == TransactionType.TRANSFER) "From" else "Paid with")
+                FieldLabel(if (selectedTab == TransactionType.TRANSFER) "Take it from" else "Paid with")
                 Row(
                     modifier = Modifier.horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -396,7 +413,7 @@ fun AddTransactionScreen(
 
             if (selectedTab == TransactionType.TRANSFER) {
                 item {
-                    FieldLabel("To")
+                    FieldLabel("Put it in")
                     Row(
                         modifier = Modifier.horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -433,7 +450,7 @@ fun AddTransactionScreen(
 
             if (selectedTab == TransactionType.EXPENSE) {
                 item {
-                    FieldLabel("Receipt (optional)")
+                    FieldLabel("Photo of the bill (optional)")
                     if (receiptUri == null) {
                         Row(
                             modifier = Modifier
@@ -458,7 +475,7 @@ fun AddTransactionScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "Attach a photo",
+                                text = "Add a photo",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -483,7 +500,7 @@ fun AddTransactionScreen(
                                     contentScale = ContentScale.Crop
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text("Photo attached", style = MaterialTheme.typography.titleSmall)
+                                Text("Photo added", style = MaterialTheme.typography.titleSmall)
                             }
                             IconButton(onClick = { receiptUri = null }) {
                                 Icon(Icons.Default.Close, contentDescription = "Remove receipt", tint = ExpenseRed)
@@ -520,7 +537,7 @@ fun AddTransactionScreen(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, tint = EmeraldPrimary, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Saved", style = MaterialTheme.typography.titleSmall, color = EmeraldPrimary)
+                    Text("Saved!", style = MaterialTheme.typography.titleSmall, color = EmeraldPrimary)
                 }
             }
             Button(
@@ -546,11 +563,7 @@ fun AddTransactionScreen(
                 )
             ) {
                 Text(
-                    text = if (editingTransaction != null) "Update" else when (selectedTab) {
-                        TransactionType.EXPENSE -> "Save expense"
-                        TransactionType.INCOME -> "Save income"
-                        TransactionType.TRANSFER -> "Save transfer"
-                    },
+                    text = if (editingTransaction != null) "Save changes" else "Save",
                     style = MaterialTheme.typography.titleMedium
                 )
             }
@@ -609,9 +622,9 @@ private fun TypeSwitch(selected: TransactionType, onSelect: (TransactionType) ->
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         listOf(
-            Triple(TransactionType.EXPENSE, "Expense", ExpenseRed),
-            Triple(TransactionType.INCOME, "Income", EmeraldPrimary),
-            Triple(TransactionType.TRANSFER, "Transfer", TransferBlue)
+            Triple(TransactionType.EXPENSE, "Spent", ExpenseRed),
+            Triple(TransactionType.INCOME, "Got money", EmeraldPrimary),
+            Triple(TransactionType.TRANSFER, "Move", TransferBlue)
         ).forEach { (type, label, color) ->
             val isSelected = selected == type
             val bg by animateColorAsState(

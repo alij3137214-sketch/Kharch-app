@@ -1,5 +1,6 @@
 package com.example.data.model
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 
@@ -12,5 +13,8 @@ data class BillReminderEntity(
     val dueDate: Long,
     val category: String = "Bills",
     val isPaid: Boolean = false,
-    val paymentMethod: String = "Bank"
+    val paymentMethod: String = "Bank",
+    /** When true, paying this bill creates the same bill again next month. */
+    @ColumnInfo(defaultValue = "0")
+    val repeatMonthly: Boolean = false
 )

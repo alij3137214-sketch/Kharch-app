@@ -1,10 +1,16 @@
 package com.example
 
+import android.Manifest
+import android.graphics.Color as AndroidColor
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
@@ -24,9 +30,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.displayCutout
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,11 +56,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.ScaffoldDefaults
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -66,17 +79,25 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
+import com.example.notify.Notifier
+import com.example.notify.ReminderScheduler
+import com.example.ui.components.DeleteDataSheet
 import com.example.ui.components.KharchSplash
-import com.example.ui.components.ReceiptScannerDialog
+import com.example.ui.components.SettingsSheet
 import com.example.ui.components.pressable
 import com.example.ui.screens.ActivityScreen
 import com.example.ui.screens.AddTransactionScreen
+import com.example.ui.screens.CanBuyScreen
+import com.example.ui.screens.CommitteeScreen
 import com.example.ui.screens.HomeScreen
+import com.example.ui.screens.InsightsScreen
+import com.example.ui.screens.OnboardingScreen
 import com.example.ui.screens.PlanScreen
-import com.example.ui.screens.ReportsScreen
-import com.example.ui.screens.SpendingScreen
+import com.example.ui.screens.UdhaarScreen
+import com.example.ui.screens.WishListScreen
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.KharchTheme
+import com.example.ui.viewmodel.AppEvent
 import com.example.ui.viewmodel.KharchViewModel
 import com.example.ui.viewmodel.KharchViewModelFactory
 
@@ -85,25 +106,29 @@ enum class AppScreen {
     ACTIVITY,
     UNDERSTAND,
     ADD,
-    REPORTS,
-    PLAN;
+    PLAN,
+    CANBUY,
+    WISHLIST,
+    UDHAAR,
+    COMMITTEE;
 
-    companion object {
-        val SPENDING = UNDERSTAND
-    }
+    /** Pages opened from Plan or Home. Back goes to where the person came from. */
+    val isHelper: Boolean get() = this == CANBUY || this == WISHLIST || this == UDHAAR || this == COMMITTEE
 }
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // The app is always dark, so the status bar and navigation bar icons must always be light.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+        )
+        Notifier.ensureChannels(this)
         setContent {
             KharchTheme {
                 val context = LocalContext.current
-                val viewModel: KharchViewModel = viewModel(
-                    factory = KharchViewModelFactory(context)
-                )
-
+                val viewModel: KharchViewModel = viewModel(factory = KharchViewModelFactory(context))
                 KharchMainApp(viewModel = viewModel)
             }
         }
@@ -112,24 +137,49 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun KharchMainApp(viewModel: KharchViewModel) {
+    val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
-    var showSplash by remember { mutableStateOf(true) }
+    val profile = uiState.profile
 
-    // Add / Edit Transaction Screen contextual parameters
+    var currentScreen by rememberSaveable { mutableStateOf(AppScreen.HOME) }
+    var returnTo by rememberSaveable { mutableStateOf(AppScreen.PLAN) }
+    var showSplash by rememberSaveable { mutableStateOf(true) }
+    var editingAnswers by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showDeleteData by rememberSaveable { mutableStateOf(false) }
+
+    // Add / edit screen details
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var prefilledType by remember { mutableStateOf<TransactionType?>(null) }
     var prefilledTitle by remember { mutableStateOf<String?>(null) }
     var prefilledAmount by remember { mutableStateOf<Double?>(null) }
     var prefilledCategory by remember { mutableStateOf<String?>(null) }
-    var prefilledReceiptUri by remember { mutableStateOf<String?>(null) }
 
-    var showReceiptScanner by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
 
-    // Back from any inner screen goes to Home first.
-    BackHandler(enabled = !showSplash && currentScreen != AppScreen.HOME) {
-        currentScreen = if (currentScreen == AppScreen.REPORTS) AppScreen.UNDERSTAND else AppScreen.HOME
-        if (currentScreen == AppScreen.HOME) editingTransaction = null
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val askNotificationPermission: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !Notifier.canNotify(context)) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+
+    // Keep the daily alarms in step with what the person turned on.
+    LaunchedEffect(profile.onboardingDone, profile.billReminders, profile.dailyReminder) {
+        ReminderScheduler.schedule(context, profile)
+    }
+
+    // Messages from the ViewModel: say it on screen, and also as a phone notification for budget alerts.
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is AppEvent.Message -> snackbar.showSnackbar(event.text)
+                is AppEvent.BudgetNotice -> {
+                    Notifier.showBudget(context, event.alert.title, event.alert.text)
+                    snackbar.showSnackbar(event.alert.title + ". " + event.alert.text)
+                }
+            }
+        }
     }
 
     fun openAddScreen(
@@ -137,7 +187,6 @@ fun KharchMainApp(viewModel: KharchViewModel) {
         title: String? = null,
         amount: Double? = null,
         category: String? = null,
-        receiptUri: String? = null,
         editTx: TransactionEntity? = null
     ) {
         editingTransaction = editTx
@@ -145,138 +194,172 @@ fun KharchMainApp(viewModel: KharchViewModel) {
         prefilledTitle = title
         prefilledAmount = amount
         prefilledCategory = category
-        prefilledReceiptUri = receiptUri
         currentScreen = AppScreen.ADD
     }
 
-    fun editTransaction(tx: TransactionEntity) =
-        openAddScreen(type = TransactionType.valueOf(tx.type), editTx = tx)
+    fun editTransaction(tx: TransactionEntity) = openAddScreen(type = TransactionType.valueOf(tx.type), editTx = tx)
 
-    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            containerColor = MaterialTheme.colorScheme.background,
-            contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
-            bottomBar = {
-                if (currentScreen != AppScreen.ADD) {
-                    KharchBottomNavigation(
-                        currentScreen = currentScreen,
-                        onNavigate = { screen ->
-                            if (screen == AppScreen.ADD) {
-                                openAddScreen(type = TransactionType.EXPENSE)
-                            } else {
-                                currentScreen = screen
-                            }
-                        }
-                    )
-                }
-            }
-        ) { innerPadding ->
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(top = innerPadding.calculateTopPadding())
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                AnimatedContent(
-                    targetState = currentScreen,
-                    transitionSpec = {
-                        (fadeIn(tween(260, delayMillis = 60)) + slideInVertically(tween(320)) { it / 28 }) togetherWith
-                            fadeOut(tween(120))
-                    },
-                    label = "screen_transition"
-                ) { targetScreen ->
-                    when (targetScreen) {
-                        AppScreen.HOME -> HomeScreen(
-                            uiState = uiState,
-                            onToggleBalanceVisibility = { viewModel.toggleBalanceVisibility() },
-                            onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
-                            onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
-                            onQuickTransfer = { openAddScreen(type = TransactionType.TRANSFER) },
-                            onQuickScanReceipt = { showReceiptScanner = true },
-                            onBillClick = { currentScreen = AppScreen.PLAN },
-                            onEditTransaction = { tx -> editTransaction(tx) },
-                            onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                            onNavigateToActivity = { currentScreen = AppScreen.ACTIVITY },
-                            onNavigateToPlan = { currentScreen = AppScreen.PLAN },
-                            onSeedRandomData = { viewModel.seedRandomTestData() },
-                            onClearAllData = { viewModel.clearAllData() }
-                        )
+    fun openHelper(screen: AppScreen) {
+        returnTo = if (currentScreen.isHelper) returnTo else currentScreen
+        currentScreen = screen
+    }
 
-                        AppScreen.ACTIVITY -> ActivityScreen(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
-                            onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
-                            onEditTransaction = { tx -> editTransaction(tx) },
-                            onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                            onSeedRandomData = { viewModel.seedRandomTestData() },
-                            onClearAllData = { viewModel.clearAllData() }
-                        )
+    BackHandler(enabled = !showSplash && profile.onboardingDone && !editingAnswers && currentScreen != AppScreen.HOME) {
+        if (currentScreen.isHelper) {
+            currentScreen = returnTo
+        } else {
+            currentScreen = AppScreen.HOME
+            editingTransaction = null
+        }
+    }
 
-                        AppScreen.UNDERSTAND -> SpendingScreen(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onEditTransaction = { tx -> editTransaction(tx) },
-                            onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                            onNavigateToReports = { currentScreen = AppScreen.REPORTS }
-                        )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            // Phones with a notch or rounded corners: keep content out of the side cut-outs.
+            .windowInsetsPadding(WindowInsets.displayCutout.only(WindowInsetsSides.Horizontal))
+    ) {
+        when {
+            !profile.onboardingDone -> OnboardingScreen(
+                initial = profile,
+                isEditing = false,
+                onFinish = { viewModel.completeOnboarding(it) },
+                onAskNotificationPermission = askNotificationPermission
+            )
 
-                        AppScreen.ADD -> AddTransactionScreen(
-                            viewModel = viewModel,
-                            editingTransaction = editingTransaction,
-                            prefilledTitle = prefilledTitle,
-                            prefilledAmount = prefilledAmount,
-                            prefilledCategory = prefilledCategory,
-                            prefilledReceiptUri = prefilledReceiptUri,
-                            prefilledType = prefilledType,
-                            onTransactionSaved = {
-                                editingTransaction = null
-                                currentScreen = AppScreen.HOME
-                            },
-                            onCancel = {
-                                editingTransaction = null
-                                currentScreen = AppScreen.HOME
-                            }
-                        )
+            editingAnswers -> OnboardingScreen(
+                initial = profile,
+                isEditing = true,
+                onFinish = {
+                    viewModel.completeOnboarding(it)
+                    editingAnswers = false
+                },
+                onAskNotificationPermission = askNotificationPermission,
+                onClose = { editingAnswers = false }
+            )
 
-                        AppScreen.REPORTS -> ReportsScreen(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onTransactionClick = { tx -> editTransaction(tx) }
-                        )
-
-                        AppScreen.PLAN -> PlanScreen(
-                            uiState = uiState,
-                            viewModel = viewModel,
-                            onPlanExpense = { itemName, amount, category ->
-                                openAddScreen(
-                                    type = TransactionType.EXPENSE,
-                                    title = itemName,
-                                    amount = amount,
-                                    category = category
-                                )
+            else -> Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
+                snackbarHost = { SnackbarHost(snackbar) },
+                bottomBar = {
+                    if (currentScreen != AppScreen.ADD) {
+                        KharchBottomNavigation(
+                            currentScreen = currentScreen,
+                            onNavigate = { screen ->
+                                if (screen == AppScreen.ADD) openAddScreen(type = TransactionType.EXPENSE) else currentScreen = screen
                             }
                         )
                     }
                 }
-
-                if (showReceiptScanner) {
-                    ReceiptScannerDialog(
-                        onDismiss = { showReceiptScanner = false },
-                        onReceiptExtracted = { title, amount, category, receiptUri ->
-                            showReceiptScanner = false
-                            openAddScreen(
-                                type = TransactionType.EXPENSE,
-                                title = title,
-                                amount = amount,
-                                category = category,
-                                receiptUri = receiptUri
+            ) { innerPadding ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = innerPadding.calculateTopPadding())
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    AnimatedContent(
+                        targetState = currentScreen,
+                        transitionSpec = {
+                            (fadeIn(tween(260, delayMillis = 60)) + slideInVertically(tween(320)) { it / 28 }) togetherWith
+                                fadeOut(tween(120))
+                        },
+                        label = "screen_transition"
+                    ) { screen ->
+                        when (screen) {
+                            AppScreen.HOME -> HomeScreen(
+                                uiState = uiState,
+                                onToggleBalanceVisibility = { viewModel.toggleBalanceVisibility() },
+                                onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
+                                onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
+                                onQuickTransfer = { openAddScreen(type = TransactionType.TRANSFER) },
+                                onEditTransaction = { editTransaction(it) },
+                                onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                                onNavigateToActivity = { currentScreen = AppScreen.ACTIVITY },
+                                onNavigateToPlan = { currentScreen = AppScreen.PLAN },
+                                onOpenUdhaar = { openHelper(AppScreen.UDHAAR) },
+                                onOpenCommittee = { openHelper(AppScreen.COMMITTEE) },
+                                onOpenWishList = { openHelper(AppScreen.WISHLIST) },
+                                onOpenSettings = { showSettings = true },
+                                onOpenDeleteData = { showDeleteData = true },
+                                onPayBill = { viewModel.markBillAsPaid(it) },
+                                onPayCommittee = { viewModel.payCommitteeMonth(it) },
+                                onCommitteePayout = { viewModel.receiveCommitteePayout(it) },
+                                onBuyWish = { viewModel.buyWish(it) },
+                                onDropWish = { viewModel.dropWish(it) }
                             )
+
+                            AppScreen.ACTIVITY -> ActivityScreen(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
+                                onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
+                                onEditTransaction = { editTransaction(it) },
+                                onDeleteTransaction = { viewModel.deleteTransaction(it) },
+                                onSeedRandomData = {},
+                                onClearAllData = { viewModel.deleteAllTransactions() }
+                            )
+
+                            AppScreen.UNDERSTAND -> InsightsScreen(uiState = uiState, viewModel = viewModel)
+
+                            AppScreen.ADD -> AddTransactionScreen(
+                                viewModel = viewModel,
+                                editingTransaction = editingTransaction,
+                                prefilledTitle = prefilledTitle,
+                                prefilledAmount = prefilledAmount,
+                                prefilledCategory = prefilledCategory,
+                                prefilledType = prefilledType,
+                                onTransactionSaved = {
+                                    editingTransaction = null
+                                    currentScreen = AppScreen.HOME
+                                },
+                                onCancel = {
+                                    editingTransaction = null
+                                    currentScreen = AppScreen.HOME
+                                }
+                            )
+
+                            AppScreen.PLAN -> PlanScreen(
+                                uiState = uiState,
+                                viewModel = viewModel,
+                                onOpenCanBuy = { openHelper(AppScreen.CANBUY) },
+                                onOpenWishList = { openHelper(AppScreen.WISHLIST) },
+                                onOpenUdhaar = { openHelper(AppScreen.UDHAAR) },
+                                onOpenCommittee = { openHelper(AppScreen.COMMITTEE) }
+                            )
+
+                            AppScreen.CANBUY -> CanBuyScreen(uiState, viewModel, onBack = { currentScreen = returnTo })
+                            AppScreen.WISHLIST -> WishListScreen(uiState, viewModel, onBack = { currentScreen = returnTo })
+                            AppScreen.UDHAAR -> UdhaarScreen(uiState, viewModel, onBack = { currentScreen = returnTo })
+                            AppScreen.COMMITTEE -> CommitteeScreen(uiState, viewModel, onBack = { currentScreen = returnTo })
                         }
-                    )
+                    }
                 }
             }
+        }
+
+        if (showSettings) {
+            SettingsSheet(
+                profile = profile,
+                onChange = { viewModel.updateProfile(it) },
+                onEditAnswers = { editingAnswers = true },
+                onAskNotificationPermission = askNotificationPermission,
+                onDismiss = { showSettings = false }
+            )
+        }
+        if (showDeleteData) {
+            DeleteDataSheet(
+                onDeleteMonth = { y, m -> viewModel.deleteMonth(y, m) },
+                onDeleteAllRecords = { viewModel.deleteAllTransactions() },
+                onDeleteEverything = {
+                    viewModel.deleteEverything()
+                    currentScreen = AppScreen.HOME
+                },
+                onDismiss = { showDeleteData = false }
+            )
         }
 
         AnimatedVisibility(
@@ -290,8 +373,8 @@ fun KharchMainApp(viewModel: KharchViewModel) {
 }
 
 /**
- * Floating navigation bar. The selected tab grows into a pill that shows its label;
- * the centre button is the thing you do most: add a record.
+ * Floating navigation bar. The selected tab grows into a pill that shows its name;
+ * the centre button is the thing you do most: write down what you spent.
  */
 @Composable
 fun KharchBottomNavigation(
@@ -324,7 +407,7 @@ fun KharchBottomNavigation(
                 onClick = { onNavigate(AppScreen.HOME) }
             )
             NavItem(
-                label = "Activity",
+                label = "History",
                 selected = currentScreen == AppScreen.ACTIVITY,
                 selectedIcon = Icons.Filled.ReceiptLong,
                 unselectedIcon = Icons.Outlined.ReceiptLong,
@@ -343,15 +426,15 @@ fun KharchBottomNavigation(
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add record",
+                    contentDescription = "Add",
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(28.dp)
                 )
             }
 
             NavItem(
-                label = "Insights",
-                selected = currentScreen == AppScreen.UNDERSTAND || currentScreen == AppScreen.REPORTS,
+                label = "Charts",
+                selected = currentScreen == AppScreen.UNDERSTAND,
                 selectedIcon = Icons.Filled.PieChart,
                 unselectedIcon = Icons.Outlined.PieChart,
                 testTag = "nav_understand",
@@ -359,7 +442,7 @@ fun KharchBottomNavigation(
             )
             NavItem(
                 label = "Plan",
-                selected = currentScreen == AppScreen.PLAN,
+                selected = currentScreen == AppScreen.PLAN || currentScreen.isHelper,
                 selectedIcon = Icons.Filled.Savings,
                 unselectedIcon = Icons.Outlined.Savings,
                 testTag = "nav_plan",

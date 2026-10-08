@@ -87,9 +87,9 @@ fun ActivityScreen(
 
     val filterOptions = listOf(
         "ALL" to "All",
-        "EXPENSE" to "Expenses",
-        "INCOME" to "Income",
-        "TRANSFER" to "Transfers"
+        "EXPENSE" to "Money out",
+        "INCOME" to "Money in",
+        "TRANSFER" to "Moved"
     )
 
     val filtered = uiState.filteredTransactions
@@ -113,12 +113,12 @@ fun ActivityScreen(
             ) {
                 Column {
                     Text(
-                        text = "Activity",
+                        text = "History",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "${filtered.size} ${if (filtered.size == 1) "record" else "records"}",
+                        text = "${filtered.size} ${if (filtered.size == 1) "thing" else "things"} written down",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -144,8 +144,8 @@ fun ActivityScreen(
                     .entrance(0),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                SummaryTile("In", "+" + formatRs(totalInflow), IncomeGreen, Modifier.weight(1f))
-                SummaryTile("Out", "−" + formatRs(totalOutflow), ExpenseRed, Modifier.weight(1f))
+                SummaryTile("Money in", "+" + formatRs(totalInflow), IncomeGreen, Modifier.weight(1f))
+                SummaryTile("Money out", "−" + formatRs(totalOutflow), ExpenseRed, Modifier.weight(1f))
             }
             Spacer(modifier = Modifier.height(14.dp))
         }
@@ -158,7 +158,7 @@ fun ActivityScreen(
                     .fillMaxWidth()
                     .padding(horizontal = ScreenPadding)
                     .testTag("activity_search_text_field"),
-                placeholder = { Text("Search records") },
+                placeholder = { Text("Search") },
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                 trailingIcon = {
                     if (uiState.searchQuery.isNotBlank()) {
@@ -217,11 +217,11 @@ fun ActivityScreen(
                         )
                     }
                     Text(
-                        text = if (uiState.searchQuery.isNotBlank()) "No matches" else "No records yet",
+                        text = if (uiState.searchQuery.isNotBlank()) "Nothing found" else "Nothing here yet",
                         style = MaterialTheme.typography.titleMedium
                     )
                     Text(
-                        text = if (uiState.searchQuery.isNotBlank()) "Try a different word or clear the filter." else "Log an expense or income to get started.",
+                        text = if (uiState.searchQuery.isNotBlank()) "Try a different word." else "Write down what you spend or get.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -232,11 +232,7 @@ fun ActivityScreen(
                             shape = RoundedCornerShape(14.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = MaterialTheme.colorScheme.onPrimary),
                             modifier = Modifier.testTag("activity_empty_add_expense_btn")
-                        ) { Text("Add expense") }
-                        TextButton(
-                            onClick = onSeedRandomData,
-                            modifier = Modifier.testTag("activity_empty_seed_data_btn")
-                        ) { Text("Try sample data") }
+                        ) { Text("Add what I spent") }
                     }
                 }
             }
@@ -259,8 +255,8 @@ fun ActivityScreen(
         AlertDialog(
             onDismissRequest = { showConfirmClearDialog = false },
             containerColor = MaterialTheme.colorScheme.surface,
-            title = { Text("Clear all records?", fontWeight = FontWeight.Bold) },
-            text = { Text("Every transaction will be deleted. This can't be undone.") },
+            title = { Text("Delete all records?", fontWeight = FontWeight.Bold) },
+            text = { Text("Every record will be deleted. You cannot get them back.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -283,6 +279,7 @@ fun ActivityScreen(
     selectedTransaction?.let { tx ->
         TransactionDetailSheet(
             transaction = tx,
+            profile = uiState.profile,
             onDismiss = { selectedTransaction = null },
             onEdit = {
                 selectedTransaction = null

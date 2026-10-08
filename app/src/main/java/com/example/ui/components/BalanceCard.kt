@@ -51,7 +51,8 @@ fun BalanceCard(
     totalExpense: Double,
     isBalanceHidden: Boolean,
     availablePercentage: Int,
-    upcomingBill: BillReminderEntity?,
+    showBudget: Boolean = true,
+    upcomingBill: BillReminderEntity? = null,
     onToggleVisibility: () -> Unit,
     onUpcomingBillClick: (BillReminderEntity) -> Unit = {}
 ) {
@@ -89,7 +90,7 @@ fun BalanceCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "Available balance",
+                text = "Money you have",
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -135,19 +136,20 @@ fun BalanceCard(
 
         Row(modifier = Modifier.fillMaxWidth()) {
             StatColumn(
-                label = "Income",
+                label = "Money in",
                 value = if (isBalanceHidden) "••••" else "+" + formatRs(totalIncome),
                 dot = IncomeGreen,
                 modifier = Modifier.weight(1f)
             )
             StatColumn(
-                label = "Spent",
+                label = "Money out",
                 value = if (isBalanceHidden) "••••" else "−" + formatRs(totalExpense),
                 dot = ExpenseRed,
                 modifier = Modifier.weight(1f)
             )
         }
 
+        if (showBudget) {
         Spacer(modifier = Modifier.height(22.dp))
 
         Row(
@@ -155,7 +157,7 @@ fun BalanceCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
-                text = "Monthly budget",
+                text = "Monthly limit",
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -180,6 +182,7 @@ fun BalanceCard(
                     .clip(CircleShape)
                     .background(budgetColor)
             )
+        }
         }
 
         if (upcomingBill != null) {

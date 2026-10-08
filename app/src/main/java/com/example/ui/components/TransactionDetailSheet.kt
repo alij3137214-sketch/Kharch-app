@@ -64,6 +64,7 @@ import java.util.Locale
 @Composable
 fun TransactionDetailSheet(
     transaction: TransactionEntity,
+    profile: com.example.data.profile.UserProfile = com.example.data.profile.UserProfile(),
     onDismiss: () -> Unit,
     onEdit: (TransactionEntity) -> Unit,
     onDelete: (TransactionEntity) -> Unit
@@ -145,6 +146,13 @@ fun TransactionDetailSheet(
                 color = amountColor
             )
 
+            if (transaction.type == TransactionType.EXPENSE.name) {
+                com.example.domain.MoneyMath.priceInWork(transaction.amount, profile)?.let { work ->
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(text = work, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
 
             // Details Container
@@ -158,13 +166,13 @@ fun TransactionDetailSheet(
             ) {
                 DetailRow(
                     icon = Icons.Default.Category,
-                    label = "Category / Source",
+                    label = "Kind",
                     value = transaction.category
                 )
 
                 DetailRow(
                     icon = Icons.Default.Payment,
-                    label = "Payment Method",
+                    label = "Paid with",
                     value = if (transaction.toPaymentMethod != null) {
                         "${transaction.paymentMethod} → ${transaction.toPaymentMethod}"
                     } else transaction.paymentMethod
@@ -185,7 +193,7 @@ fun TransactionDetailSheet(
                 if (transaction.note.isNotBlank()) {
                     DetailRow(
                         icon = Icons.Default.Description,
-                        label = "Notes",
+                        label = "Note",
                         value = transaction.note
                     )
                 }
@@ -203,7 +211,7 @@ fun TransactionDetailSheet(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = "Attached Receipt",
+                                text = "Photo",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -273,8 +281,8 @@ fun TransactionDetailSheet(
     if (showDeleteConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirmDialog = false },
-            title = { Text("Delete Transaction") },
-            text = { Text("Are you sure you want to delete this transaction for ${transaction.title}? This action cannot be undone.") },
+            title = { Text("Delete this?") },
+            text = { Text("${transaction.title} will be deleted. You cannot get it back.") },
             confirmButton = {
                 TextButton(
                     onClick = {
