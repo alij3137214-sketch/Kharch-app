@@ -1,15 +1,14 @@
 package com.example.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CameraAlt
@@ -25,7 +24,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
@@ -42,45 +40,13 @@ fun QuickActions(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = ScreenPadding, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        QuickActionButton(
-            label = "Expense",
-            icon = Icons.Default.Remove,
-            iconTint = ExpenseRed,
-            backgroundTint = ExpenseRed.copy(alpha = 0.12f),
-            testTag = "quick_action_expense",
-            onClick = onExpenseClick
-        )
-
-        QuickActionButton(
-            label = "Income",
-            icon = Icons.Default.Add,
-            iconTint = IncomeGreen,
-            backgroundTint = IncomeGreen.copy(alpha = 0.12f),
-            testTag = "quick_action_income",
-            onClick = onIncomeClick
-        )
-
-        QuickActionButton(
-            label = "Transfer",
-            icon = Icons.Default.SwapHoriz,
-            iconTint = TransferBlue,
-            backgroundTint = TransferBlue.copy(alpha = 0.12f),
-            testTag = "quick_action_transfer",
-            onClick = onTransferClick
-        )
-
-        QuickActionButton(
-            label = "Scan",
-            icon = Icons.Default.CameraAlt,
-            iconTint = MaterialTheme.colorScheme.primary,
-            backgroundTint = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-            testTag = "quick_action_scan_receipt",
-            onClick = onScanReceiptClick
-        )
+        QuickActionButton("Expense", Icons.Default.Remove, ExpenseRed, "quick_action_expense", onExpenseClick, Modifier.weight(1f))
+        QuickActionButton("Income", Icons.Default.Add, IncomeGreen, "quick_action_income", onIncomeClick, Modifier.weight(1f))
+        QuickActionButton("Transfer", Icons.Default.SwapHoriz, TransferBlue, "quick_action_transfer", onTransferClick, Modifier.weight(1f))
+        QuickActionButton("Scan", Icons.Default.CameraAlt, MaterialTheme.colorScheme.onSurface, "quick_action_scan_receipt", onScanReceiptClick, Modifier.weight(1f))
     }
 }
 
@@ -88,38 +54,32 @@ fun QuickActions(
 private fun QuickActionButton(
     label: String,
     icon: ImageVector,
-    iconTint: Color,
-    backgroundTint: Color,
+    tint: Color,
     testTag: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
+    val shape = RoundedCornerShape(20.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier
-            .clickable(onClick = onClick)
-            .padding(4.dp)
+        modifier = modifier
+            .pressable(onClick = onClick)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), shape)
+            .padding(vertical = 14.dp)
             .testTag(testTag)
     ) {
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .clip(CircleShape)
-                .background(backgroundTint),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = iconTint,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(24.dp)
+        )
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface
         )
     }

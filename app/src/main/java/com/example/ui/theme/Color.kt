@@ -2,45 +2,51 @@ package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-// Primary Brand Colors (BudgetIt-Inspired Mint & Emerald Glow)
-val EmeraldPrimary = Color(0xFF00FFA3)
-val EmeraldPrimaryDark = Color(0xFF059669)
-val EmeraldContainerLight = Color(0xFFD1FAE5)
-val EmeraldContainerDark = Color(0xFF063326)
-val OnEmeraldContainerLight = Color(0xFF065F46)
-val OnEmeraldContainerDark = Color(0xFFA7F3D0)
+// Kharch design language: warm near-black canvas, one calm green accent, soft semantic colors.
+// Names are kept stable so every screen picks up the palette without code changes.
 
-// Rich Navy Palette (VinzTech BudgetIt Signature Aesthetic)
-val RichNavyBg = Color(0xFF080E1E)
-val RichNavySurface = Color(0xFF101C32)
-val RichNavySurfaceVariant = Color(0xFF172642)
-val RichNavyBorder = Color(0xFF1E3356)
+// Accent
+val EmeraldPrimary = Color(0xFF4FD6A0)
+val EmeraldPrimaryDark = Color(0xFF2FA97B)
+val EmeraldContainerLight = Color(0xFFD7F5E8)
+val EmeraldContainerDark = Color(0xFF12281F)
+val OnEmeraldContainerLight = Color(0xFF0F5B3F)
+val OnEmeraldContainerDark = Color(0xFFB4EBD3)
 
-// Slate & Neutral Tones
-val SlateDark = Color(0xFF080E1E)
-val SlateCard = Color(0xFF101C32)
-val SlateBorder = Color(0xFF1E3356)
-val SlateMuted = Color(0xFF64748B)
-val SlateLight = Color(0xFF94A3B8)
+// Canvas & surfaces (layered from deepest to most raised)
+val RichNavyBg = Color(0xFF0A0B0D)
+val RichNavySurface = Color(0xFF131417)
+val RichNavySurfaceVariant = Color(0xFF1B1C20)
+val RichNavyBorder = Color(0xFF26272C)
 
-// Canvas & Surfaces
-val LightBackground = Color(0xFF080E1E) // Rich navy default for cohesive premium experience
-val LightSurface = Color(0xFF101C32)
-val LightSurfaceVariant = Color(0xFF172642)
-val LightBorder = Color(0xFF1E3356)
-val DarkBackground = Color(0xFF080E1E)
-val DarkSurface = Color(0xFF101C32)
-val DarkSurfaceVariant = Color(0xFF172642)
+val SlateDark = RichNavyBg
+val SlateCard = RichNavySurface
+val SlateBorder = RichNavyBorder
+val SlateMuted = Color(0xFF6E7078)
+val SlateLight = Color(0xFF9A9CA4)
 
-// Functional Fintech Colors
-val CyanAccent = Color(0xFF00E5FF)
-val ExpenseRed = Color(0xFFF43F5E)
-val ExpenseRedLight = Color(0xFF331420)
-val IncomeGreen = Color(0xFF00FFA3)
-val IncomeGreenLight = Color(0xFF073322)
-val TransferBlue = Color(0xFF38BDF8)
-val TransferBlueLight = Color(0xFF0F2B48)
-val WarningAmber = Color(0xFFFBBF24)
-val WarningAmberLight = Color(0xFF332508)
-val PurpleSubscription = Color(0xFFA855F7)
-val PurpleSubscriptionLight = Color(0xFF281340)
+val LightBackground = RichNavyBg
+val LightSurface = RichNavySurface
+val LightSurfaceVariant = RichNavySurfaceVariant
+val LightBorder = RichNavyBorder
+val DarkBackground = RichNavyBg
+val DarkSurface = RichNavySurface
+val DarkSurfaceVariant = RichNavySurfaceVariant
+
+// Text
+val InkPrimary = Color(0xFFF5F5F6)
+val InkSecondary = Color(0xFF9A9CA4)
+val InkTertiary = Color(0xFF6E7078)
+
+// Functional colors
+val CyanAccent = Color(0xFF7DB4F5)
+val ExpenseRed = Color(0xFFFF7468)
+val ExpenseRedLight = Color(0xFF2A1715)
+val IncomeGreen = Color(0xFF4FD6A0)
+val IncomeGreenLight = Color(0xFF12281F)
+val TransferBlue = Color(0xFF7DB4F5)
+val TransferBlueLight = Color(0xFF14202F)
+val WarningAmber = Color(0xFFF2B84B)
+val WarningAmberLight = Color(0xFF2B2111)
+val PurpleSubscription = Color(0xFFB59CF2)
+val PurpleSubscriptionLight = Color(0xFF211B33)

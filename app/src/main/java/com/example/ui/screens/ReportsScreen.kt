@@ -90,7 +90,7 @@ fun ReportsScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("reports_screen"),
-        contentPadding = PaddingValues(bottom = 20.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         // Title Header
         item {

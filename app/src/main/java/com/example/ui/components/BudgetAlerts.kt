@@ -81,7 +81,7 @@ import com.example.ui.viewmodel.CategoryBudgetStatus
 import java.util.Locale
 
 /**
- * Visual Alert Banner on Home Screen showing active budget overruns and warning threshold alerts.
+ * One calm line on Home when a budget is over or close to its limit.
  */
 @Composable
 fun HomeBudgetAlertBanner(
@@ -93,239 +93,61 @@ fun HomeBudgetAlertBanner(
     if (exceededBudgets.isEmpty() && warningBudgets.isEmpty()) return
 
     val isCritical = exceededBudgets.isNotEmpty()
-    val bannerBg = if (isCritical) ExpenseRed.copy(alpha = 0.08f) else WarningAmber.copy(alpha = 0.08f)
-    val borderColor = if (isCritical) ExpenseRed.copy(alpha = 0.35f) else WarningAmber.copy(alpha = 0.35f)
-    val accentColor = if (isCritical) ExpenseRed else WarningAmber
+    val accent = if (isCritical) ExpenseRed else WarningAmber
+    val first = if (isCritical) exceededBudgets.first() else warningBudgets.first()
+    val count = if (isCritical) exceededBudgets.size else warningBudgets.size
 
-    Card(
+    val title = when {
+        isCritical && count == 1 -> "${first.category} is over budget"
+        isCritical -> "$count categories are over budget"
+        count == 1 -> "${first.category} is close to its limit"
+        else -> "$count categories are close to their limit"
+    }
+    val detail = if (isCritical) {
+        "Rs. ${String.format(Locale.getDefault(), "%,.0f", first.overAmount)} over your limit"
+    } else {
+        "Rs. ${String.format(Locale.getDefault(), "%,.0f", first.remaining)} left in ${first.category}"
+    }
+
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp)
-            .clickable(onClick = onManageBudgetsClick)
+            .padding(horizontal = 20.dp, vertical = 5.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(accent.copy(alpha = 0.10f))
+            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
+            .pressable(pressedScale = 0.985f, onClick = onManageBudgetsClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp)
             .testTag("home_budget_alert_banner"),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = bannerBg),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor)
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            // Header Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(accentColor.copy(alpha = 0.2f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = if (isCritical) Icons.Default.Warning else Icons.Default.ElectricBolt,
-                            contentDescription = "Alert",
-                            tint = accentColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Column {
-                        Text(
-                            text = if (isCritical) {
-                                if (exceededBudgets.size == 1) "🚨 Budget Limit Exceeded!"
-                                else "🚨 ${exceededBudgets.size} Categories Over Budget!"
-                            } else {
-                                if (warningBudgets.size == 1) "⚡ Approaching Budget Limit"
-                                else "⚡ ${warningBudgets.size} Categories Near Threshold"
-                            },
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = accentColor
-                        )
-                        Text(
-                            text = if (isCritical) "Spending has surpassed defined monthly limits"
-                            else "Spending has crossed warning alert thresholds",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        text = "Manage",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = accentColor
-                    )
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = "Manage",
-                        tint = accentColor,
-                        modifier = Modifier.size(14.dp)
-                    )
-                }
-            }
-
-            // Exceeded items preview
-            if (exceededBudgets.isNotEmpty()) {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    exceededBudgets.take(2).forEach { item ->
-                        val cat = ExpenseCategory.fromString(item.category)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(24.dp)
-                                        .clip(CircleShape)
-                                        .background(cat.color.copy(alpha = 0.2f)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = cat.icon(),
-                                        contentDescription = null,
-                                        tint = cat.color,
-                                        modifier = Modifier.size(14.dp)
-                                    )
-                                }
-                                Text(
-                                    text = item.category,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Rs. ${String.format(Locale.getDefault(), "%,.0f", item.currentSpent)} / ${String.format(Locale.getDefault(), "%,.0f", item.monthlyLimit)}",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(6.dp))
-                                        .background(ExpenseRed)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        text = "+Rs. ${String.format(Locale.getDefault(), "%,.0f", item.overAmount)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color.White,
-                                        fontSize = 10.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    if (exceededBudgets.size > 2) {
-                        Text(
-                            text = "+ ${exceededBudgets.size - 2} more over budget categories",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accentColor,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(start = 4.dp)
-                        )
-                    }
-                }
-            } else if (warningBudgets.isNotEmpty()) {
-                // Show warning item preview
-                warningBudgets.take(2).forEach { item ->
-                    val cat = ExpenseCategory.fromString(item.category)
-                    val pctInt = (item.spentPercentage * 100).toInt()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.7f))
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .clip(CircleShape)
-                                    .background(cat.color.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = cat.icon(),
-                                    contentDescription = null,
-                                    tint = cat.color,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                            }
-                            Text(
-                                text = item.category,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "Rs. ${String.format(Locale.getDefault(), "%,.0f", item.remaining)} left",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(WarningAmber)
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                            ) {
-                                Text(
-                                    text = "$pctInt%",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = null,
+            tint = accent,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
+        Icon(
+            imageVector = Icons.Default.ArrowForward,
+            contentDescription = "Manage budgets",
+            tint = accent,
+            modifier = Modifier.size(18.dp)
+        )
     }
 }
-
 /**
  * Real-time Budget Warning Card inside Add/Edit Transaction Screen.
  * Triggers interactive visual alerts as soon as an expense amount is typed.

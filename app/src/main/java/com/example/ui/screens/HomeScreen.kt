@@ -1,8 +1,5 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,34 +13,23 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -54,26 +40,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.BillReminderEntity
 import com.example.data.model.TransactionEntity
-import com.example.ui.components.AccountsCarousel
+import com.example.data.model.TransactionType
 import com.example.ui.components.BalanceCard
+import com.example.ui.components.DayHeader
 import com.example.ui.components.HomeBudgetAlertBanner
+import com.example.ui.components.IconBadge
+import com.example.ui.components.KharchCard
 import com.example.ui.components.QuickActions
-import com.example.ui.components.SubscriptionTrackerCard
-import com.example.ui.components.TopHeader
+import com.example.ui.components.ScreenPadding
+import com.example.ui.components.SectionHeader
 import com.example.ui.components.TransactionDetailSheet
 import com.example.ui.components.TransactionItem
+import com.example.ui.components.dayLabel
+import com.example.ui.components.entrance
+import com.example.ui.components.formatRs
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.viewmodel.KharchUiState
-import java.util.Locale
+import java.util.Calendar
 
 @Composable
 fun HomeScreen(
@@ -84,76 +73,60 @@ fun HomeScreen(
     onQuickIncome: () -> Unit,
     onQuickTransfer: () -> Unit,
     onQuickScanReceipt: () -> Unit,
-    onSearchQueryChange: (String) -> Unit = {},
-    onFilterTypeChange: (String) -> Unit = {},
     onBillClick: (BillReminderEntity) -> Unit,
     onEditTransaction: (TransactionEntity) -> Unit,
     onDeleteTransaction: (TransactionEntity) -> Unit,
     onNavigateToActivity: () -> Unit = {},
     onNavigateToPlan: () -> Unit = {},
-    onOpenVaultEntrance: () -> Unit = {},
     onSeedRandomData: () -> Unit = {},
     onClearAllData: () -> Unit = {}
 ) {
-    var selectedTransactionForDetail by remember { mutableStateOf<TransactionEntity?>(null) }
-    var isSearchExpanded by remember { mutableStateOf(false) }
+    var selectedTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var showConfirmClearDialog by remember { mutableStateOf(false) }
 
-    val filterOptions = listOf(
-        "ALL" to "All",
-        "EXPENSE" to "Expenses",
-        "INCOME" to "Income",
-        "TRANSFER" to "Transfers"
-    )
-
-    // Calculate smart spending insight
-    val insightText = remember(uiState.transactions) {
-        val todayExpense = uiState.transactions.filter {
-            it.type == "EXPENSE" &&
-            (System.currentTimeMillis() - it.timestamp) < 86400000L
-        }
-        val count = todayExpense.size
-        val sum = todayExpense.sumOf { it.amount }
-        val topCat = todayExpense.groupBy { it.category }.maxByOrNull { it.value.sumOf { tx -> tx.amount } }?.key
-
-        when {
-            count == 0 -> "No expenses today"
-            topCat != null -> "Today: Rs. ${String.format(Locale.getDefault(), "%,.0f", sum)} · Top: $topCat"
-            else -> "Today: Rs. ${String.format(Locale.getDefault(), "%,.0f", sum)}"
-        }
-    }
+    val recent = remember(uiState.transactions) { uiState.transactions.take(6) }
+    val grouped = remember(recent) { recent.groupBy { dayLabel(it.timestamp) } }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("home_screen"),
-        contentPadding = PaddingValues(bottom = 20.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
-        // Top Header
         item {
-            TopHeader(
-                onSearchClick = { isSearchExpanded = !isSearchExpanded },
-                onOpenVaultEntrance = onOpenVaultEntrance,
+            HomeHeader(
                 onSeedRandomData = onSeedRandomData,
-                onClearAllData = { showConfirmClearDialog = true }
+                onClearAll = { showConfirmClearDialog = true }
             )
         }
 
-        // Balance Card
         item {
-            BalanceCard(
-                totalBalance = uiState.totalBalance,
-                totalIncome = uiState.totalIncome,
-                totalExpense = uiState.totalExpense,
-                isBalanceHidden = uiState.isBalanceHidden,
-                availablePercentage = uiState.availableBudgetPercentage,
-                upcomingBill = uiState.upcomingBill,
-                onToggleVisibility = onToggleBalanceVisibility,
-                onUpcomingBillClick = onBillClick
-            )
+            Box(modifier = Modifier.entrance(0)) {
+                BalanceCard(
+                    totalBalance = uiState.totalBalance,
+                    totalIncome = uiState.totalIncome,
+                    totalExpense = uiState.totalExpense,
+                    isBalanceHidden = uiState.isBalanceHidden,
+                    availablePercentage = uiState.availableBudgetPercentage,
+                    upcomingBill = uiState.upcomingBill,
+                    onToggleVisibility = onToggleBalanceVisibility,
+                    onUpcomingBillClick = onBillClick
+                )
+            }
         }
 
-        // Budget Alerts & Warnings Banner (triggers when thresholds exceeded or near limit)
+        item {
+            Spacer(modifier = Modifier.height(14.dp))
+            Box(modifier = Modifier.entrance(1)) {
+                QuickActions(
+                    onExpenseClick = onQuickExpense,
+                    onIncomeClick = onQuickIncome,
+                    onTransferClick = onQuickTransfer,
+                    onScanReceiptClick = onQuickScanReceipt
+                )
+            }
+        }
+
         item {
             HomeBudgetAlertBanner(
                 exceededBudgets = uiState.exceededBudgets,
@@ -162,182 +135,90 @@ fun HomeScreen(
             )
         }
 
-        // Quick Actions
-        item {
-            Spacer(modifier = Modifier.height(6.dp))
-            QuickActions(
-                onExpenseClick = onQuickExpense,
-                onIncomeClick = onQuickIncome,
-                onTransferClick = onQuickTransfer,
-                onScanReceiptClick = onQuickScanReceipt
-            )
-        }
-
-        // Multiple Accounts & Wallets Carousel (BudgetIt signature)
         item {
             Spacer(modifier = Modifier.height(10.dp))
-            AccountsCarousel(
-                transactions = uiState.transactions,
-                totalBalance = uiState.totalBalance,
-                isBalanceHidden = uiState.isBalanceHidden,
-                onAccountClick = { _ -> onNavigateToActivity() }
-            )
-        }
-
-        // Subscriptions & Recurring Bills Tracker Card (BudgetIt signature)
-        item {
-            Spacer(modifier = Modifier.height(10.dp))
-            SubscriptionTrackerCard(
-                bills = uiState.bills,
-                onViewAllClick = onNavigateToPlan
-            )
-        }
-
-        // Spending Insight Card
-        item {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            val aff = uiState.affordabilityAnalysis
+            Box(modifier = Modifier.padding(horizontal = ScreenPadding).entrance(2)) {
+                KharchCard(
+                    onClick = onNavigateToPlan,
+                    contentPadding = 16.dp,
+                    modifier = Modifier.testTag("home_affordability_card")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(EmeraldPrimary.copy(alpha = 0.15f)),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconBadge(icon = Icons.Default.Calculate, tint = EmeraldPrimary, size = 42.dp, iconSize = 20.dp)
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Safe to spend",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = if (aff.isDeficit) "−" + formatRs(kotlin.math.abs(aff.remainingDiscretionary))
+                                else formatRs(aff.remainingDiscretionary),
+                                style = MaterialTheme.typography.titleLarge,
+                                color = if (aff.isDeficit) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = formatRs(aff.safeDailySpend) + " a day for the rest of the month",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Icon(
-                            imageVector = Icons.Default.AutoAwesome,
-                            contentDescription = "Insight",
-                            tint = EmeraldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Spending Insight",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = insightText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface
+                            imageVector = Icons.Default.ChevronRight,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
             }
         }
 
-        // Safe Discretionary Spend Snapshot (Affordability Simulator Quick Access)
         item {
-            val aff = uiState.affordabilityAnalysis
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp)
-                    .clickable { onNavigateToPlan() }
-                    .testTag("home_affordability_card"),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(EmeraldPrimary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Calculate,
-                                contentDescription = "Affordability",
-                                tint = EmeraldPrimary,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(modifier = Modifier.padding(horizontal = ScreenPadding).entrance(3)) {
+                InsightLine(transactions = uiState.transactions)
+            }
+            Spacer(modifier = Modifier.height(22.dp))
+        }
 
-                        Column {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                Text(
-                                    text = "Safe Spend:",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = if (aff.isDeficit) "-Rs. ${String.format(Locale.getDefault(), "%,.0f", kotlin.math.abs(aff.remainingDiscretionary))}"
-                                    else "Rs. ${String.format(Locale.getDefault(), "%,.0f", aff.remainingDiscretionary)}",
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (aff.isDeficit) ExpenseRed else EmeraldPrimary
-                                )
-                            }
-                            Text(
-                                text = "Rs. ${String.format(Locale.getDefault(), "%,.0f", aff.safeDailySpend)}/day · Fixed: Rs. ${String.format(Locale.getDefault(), "%,.0f", aff.totalRecurringFixedCosts)}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
+        item {
+            SectionHeader(
+                title = "Recent",
+                actionLabel = if (uiState.transactions.isNotEmpty()) "See all" else null,
+                onAction = onNavigateToActivity,
+                modifier = Modifier.entrance(4)
+            )
+        }
 
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = "Simulate Purchases",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+        if (recent.isEmpty()) {
+            item {
+                EmptyRecent(onAdd = onQuickExpense)
+            }
+        } else {
+            grouped.forEach { (label, items) ->
+                item(key = "hdr_$label") {
+                    DayHeader(
+                        label = label,
+                        total = items.filter { it.type == TransactionType.EXPENSE.name }.sumOf { it.amount }
                     )
+                }
+                items.forEach { tx ->
+                    item(key = tx.id) {
+                        TransactionItem(transaction = tx, onClick = { selectedTransaction = tx })
+                    }
                 }
             }
         }
     }
 
-    // Confirmation Dialog to Remove Dummy Data
     if (showConfirmClearDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmClearDialog = false },
-            title = {
-                Text(
-                    text = "Clear All Data?",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "Reset all records to start fresh?"
-                )
-            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Clear everything?", fontWeight = FontWeight.Bold) },
+            text = { Text("All transactions, budgets, goals and bills will be deleted. This can't be undone.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -346,34 +227,163 @@ fun HomeScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
                     modifier = Modifier.testTag("confirm_remove_dummy_dialog_btn")
-                ) {
-                    Text("Clear All Data")
-                }
+                ) { Text("Delete all") }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showConfirmClearDialog = false },
                     modifier = Modifier.testTag("cancel_remove_dummy_dialog_btn")
-                ) {
-                    Text("Cancel")
-                }
+                ) { Text("Cancel") }
             }
         )
     }
 
-    // Detail Bottom Sheet
-    if (selectedTransactionForDetail != null) {
+    selectedTransaction?.let { tx ->
         TransactionDetailSheet(
-            transaction = selectedTransactionForDetail!!,
-            onDismiss = { selectedTransactionForDetail = null },
-            onEdit = { tx ->
-                selectedTransactionForDetail = null
-                onEditTransaction(tx)
+            transaction = tx,
+            onDismiss = { selectedTransaction = null },
+            onEdit = {
+                selectedTransaction = null
+                onEditTransaction(it)
             },
-            onDelete = { tx ->
-                selectedTransactionForDetail = null
-                onDeleteTransaction(tx)
+            onDelete = {
+                selectedTransaction = null
+                onDeleteTransaction(it)
             }
         )
+    }
+}
+
+@Composable
+private fun HomeHeader(
+    onSeedRandomData: () -> Unit,
+    onClearAll: () -> Unit
+) {
+    val greeting = remember {
+        when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+            in 5..11 -> "Good morning"
+            in 12..16 -> "Good afternoon"
+            in 17..21 -> "Good evening"
+            else -> "Good night"
+        }
+    }
+    var menuOpen by remember { mutableStateOf(false) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = ScreenPadding, end = 8.dp, top = 18.dp, bottom = 18.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Text(
+                text = greeting,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "Your money",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Box {
+            IconButton(onClick = { menuOpen = true }, modifier = Modifier.testTag("home_more_button")) {
+                Icon(
+                    imageVector = Icons.Default.MoreVert,
+                    contentDescription = "More",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Load sample data") },
+                    onClick = {
+                        menuOpen = false
+                        onSeedRandomData()
+                    },
+                    modifier = Modifier.testTag("dialog_seed_random_data")
+                )
+                DropdownMenuItem(
+                    text = { Text("Clear all data", color = ExpenseRed) },
+                    onClick = {
+                        menuOpen = false
+                        onClearAll()
+                    },
+                    modifier = Modifier.testTag("dialog_clear_all_data")
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InsightLine(transactions: List<TransactionEntity>) {
+    val text = remember(transactions) {
+        val now = System.currentTimeMillis()
+        val today = transactions.filter { it.type == TransactionType.EXPENSE.name && now - it.timestamp < 86_400_000L }
+        val top = today.groupBy { it.category }.maxByOrNull { e -> e.value.sumOf { it.amount } }?.key
+        when {
+            today.isEmpty() -> "No spending in the last 24 hours"
+            top != null -> "${formatRs(today.sumOf { it.amount })} spent today, mostly on $top"
+            else -> "${formatRs(today.sumOf { it.amount })} spent today"
+        }
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = Icons.Default.AutoAwesome,
+            contentDescription = null,
+            tint = EmeraldPrimary,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun EmptyRecent(onAdd: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = ScreenPadding, vertical = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.ReceiptLong,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(28.dp)
+            )
+        }
+        Text(
+            text = "Nothing here yet",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Text(
+            text = "Add your first expense and it will show up here.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Button(
+            onClick = onAdd,
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = MaterialTheme.colorScheme.onPrimary)
+        ) { Text("Add expense") }
     }
 }

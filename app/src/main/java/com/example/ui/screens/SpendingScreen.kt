@@ -32,6 +32,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -120,86 +121,38 @@ fun SpendingScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("understand_screen"),
-        contentPadding = PaddingValues(bottom = 20.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
-        // Header Title & Visual Share / Reports Action
+        // Header: title on the left, three quiet icon actions on the right
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(start = 20.dp, end = 8.dp, top = 18.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
                     Text(
-                        text = "Analytics",
+                        text = "Insights",
                         style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Visual spending charts & trends",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Where your money goes",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Share Visual Analytics Button
-                    Button(
-                        onClick = { showShareVisualDialog = true },
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("analytics_share_visual_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share Analytics",
-                            modifier = Modifier.size(15.dp),
-                            tint = Color.Black
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = "Share",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
-                        )
+                Row {
+                    IconButton(onClick = { showShareVisualDialog = true }, modifier = Modifier.testTag("analytics_share_visual_btn")) {
+                        Icon(Icons.Default.Share, contentDescription = "Share", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
-                    OutlinedButton(
-                        onClick = onNavigateToReports,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("understand_to_reports_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.BarChart,
-                            contentDescription = "Reports",
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Reports", style = MaterialTheme.typography.labelSmall)
+                    IconButton(onClick = onNavigateToReports, modifier = Modifier.testTag("understand_to_reports_btn")) {
+                        Icon(Icons.Default.BarChart, contentDescription = "Reports", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
-                    OutlinedButton(
-                        onClick = { showExportCsvDialog = true },
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        modifier = Modifier.testTag("understand_export_csv_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = "Export CSV",
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("CSV", style = MaterialTheme.typography.labelSmall)
+                    IconButton(onClick = { showExportCsvDialog = true }, modifier = Modifier.testTag("understand_export_csv_btn")) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "Export CSV", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

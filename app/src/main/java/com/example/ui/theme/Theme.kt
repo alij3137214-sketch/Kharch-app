@@ -1,29 +1,37 @@
 package com.example.ui.theme
 
-import android.os.Build
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-/**
- * BudgetIt Signature Theme: Rich Navy default with vibrant emerald & neon cyan accents.
- */
-private val RichNavyColorScheme = darkColorScheme(
+private val KharchColorScheme = darkColorScheme(
     primary = EmeraldPrimary,
-    onPrimary = Color(0xFF031A12),
+    onPrimary = Color(0xFF05241A),
     primaryContainer = EmeraldContainerDark,
     onPrimaryContainer = OnEmeraldContainerDark,
     secondary = CyanAccent,
-    onSecondary = Color(0xFF002330),
+    onSecondary = Color(0xFF0B2036),
     background = RichNavyBg,
-    onBackground = Color(0xFFF1F5F9),
+    onBackground = InkPrimary,
     surface = RichNavySurface,
-    onSurface = Color(0xFFF1F5F9),
+    onSurface = InkPrimary,
     surfaceVariant = RichNavySurfaceVariant,
-    onSurfaceVariant = Color(0xFF94A3B8),
+    onSurfaceVariant = InkSecondary,
     outline = RichNavyBorder,
+    outlineVariant = RichNavyBorder,
     error = ExpenseRed
+)
+
+private val KharchShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(22.dp),
+    extraLarge = RoundedCornerShape(28.dp)
 )
 
 @Composable
@@ -33,8 +41,9 @@ fun KharchTheme(
     content: @Composable () -> Unit
 ) {
     MaterialTheme(
-        colorScheme = RichNavyColorScheme,
+        colorScheme = KharchColorScheme,
         typography = Typography,
+        shapes = KharchShapes,
         content = content
     )
 }

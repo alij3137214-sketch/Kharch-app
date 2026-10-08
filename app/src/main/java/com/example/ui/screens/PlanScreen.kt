@@ -107,7 +107,7 @@ fun PlanScreen(
         modifier = modifier
             .fillMaxSize()
             .testTag("plan_screen"),
-        contentPadding = PaddingValues(bottom = 20.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
         // Title Header
         item {

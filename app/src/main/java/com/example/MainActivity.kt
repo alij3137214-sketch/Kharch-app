@@ -6,40 +6,43 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Savings
-import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.PieChart
 import androidx.compose.material.icons.outlined.ReceiptLong
 import androidx.compose.material.icons.outlined.Savings
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -53,20 +56,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
-import com.example.ui.components.CyberpunkBankEntrance
+import com.example.ui.components.KharchSplash
 import com.example.ui.components.ReceiptScannerDialog
+import com.example.ui.components.pressable
 import com.example.ui.screens.ActivityScreen
 import com.example.ui.screens.AddTransactionScreen
 import com.example.ui.screens.HomeScreen
@@ -112,7 +114,7 @@ class MainActivity : ComponentActivity() {
 fun KharchMainApp(viewModel: KharchViewModel) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var currentScreen by remember { mutableStateOf(AppScreen.HOME) }
-    var showCyberpunkEntrance by remember { mutableStateOf(true) }
+    var showSplash by remember { mutableStateOf(true) }
 
     // Add / Edit Transaction Screen contextual parameters
     var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
@@ -122,26 +124,12 @@ fun KharchMainApp(viewModel: KharchViewModel) {
     var prefilledCategory by remember { mutableStateOf<String?>(null) }
     var prefilledReceiptUri by remember { mutableStateOf<String?>(null) }
 
-    // Scanner Dialog state
     var showReceiptScanner by remember { mutableStateOf(false) }
 
-    // Back handling for cyberpunk entrance
-    BackHandler(enabled = showCyberpunkEntrance) {
-        showCyberpunkEntrance = false
-    }
-
-    if (showCyberpunkEntrance) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color(0xFF040810))
-                .safeDrawingPadding()
-        ) {
-            CyberpunkBankEntrance(
-                onEnterVault = { showCyberpunkEntrance = false }
-            )
-        }
-        return
+    // Back from any inner screen goes to Home first.
+    BackHandler(enabled = !showSplash && currentScreen != AppScreen.HOME) {
+        currentScreen = if (currentScreen == AppScreen.REPORTS) AppScreen.UNDERSTAND else AppScreen.HOME
+        if (currentScreen == AppScreen.HOME) editingTransaction = null
     }
 
     fun openAddScreen(
@@ -161,82 +149,80 @@ fun KharchMainApp(viewModel: KharchViewModel) {
         currentScreen = AppScreen.ADD
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
-        bottomBar = {
-            if (currentScreen != AppScreen.ADD) {
-                KharchBottomNavigation(
-                    currentScreen = currentScreen,
-                    onNavigate = { screen ->
-                        if (screen == AppScreen.ADD) {
-                            openAddScreen(type = TransactionType.EXPENSE)
-                        } else {
-                            currentScreen = screen
+    fun editTransaction(tx: TransactionEntity) =
+        openAddScreen(type = TransactionType.valueOf(tx.type), editTx = tx)
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            contentWindowInsets = ScaffoldDefaults.contentWindowInsets,
+            bottomBar = {
+                if (currentScreen != AppScreen.ADD) {
+                    KharchBottomNavigation(
+                        currentScreen = currentScreen,
+                        onNavigate = { screen ->
+                            if (screen == AppScreen.ADD) {
+                                openAddScreen(type = TransactionType.EXPENSE)
+                            } else {
+                                currentScreen = screen
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
-            AnimatedContent(
-                targetState = currentScreen,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "screen_transition"
-            ) { targetScreen ->
-                when (targetScreen) {
-                    AppScreen.HOME -> {
-                        HomeScreen(
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(top = innerPadding.calculateTopPadding())
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                AnimatedContent(
+                    targetState = currentScreen,
+                    transitionSpec = {
+                        (fadeIn(tween(260, delayMillis = 60)) + slideInVertically(tween(320)) { it / 28 }) togetherWith
+                            fadeOut(tween(120))
+                    },
+                    label = "screen_transition"
+                ) { targetScreen ->
+                    when (targetScreen) {
+                        AppScreen.HOME -> HomeScreen(
                             uiState = uiState,
                             onToggleBalanceVisibility = { viewModel.toggleBalanceVisibility() },
                             onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
                             onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
                             onQuickTransfer = { openAddScreen(type = TransactionType.TRANSFER) },
                             onQuickScanReceipt = { showReceiptScanner = true },
-                            onSearchQueryChange = { query -> viewModel.setSearchQuery(query) },
-                            onFilterTypeChange = { filter -> viewModel.setFilterType(filter) },
                             onBillClick = { currentScreen = AppScreen.PLAN },
-                            onEditTransaction = { tx -> openAddScreen(editTx = tx) },
+                            onEditTransaction = { tx -> editTransaction(tx) },
                             onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
                             onNavigateToActivity = { currentScreen = AppScreen.ACTIVITY },
                             onNavigateToPlan = { currentScreen = AppScreen.PLAN },
-                            onOpenVaultEntrance = { showCyberpunkEntrance = true },
                             onSeedRandomData = { viewModel.seedRandomTestData() },
                             onClearAllData = { viewModel.clearAllData() }
                         )
-                    }
 
-                    AppScreen.ACTIVITY -> {
-                        ActivityScreen(
+                        AppScreen.ACTIVITY -> ActivityScreen(
                             uiState = uiState,
                             viewModel = viewModel,
                             onQuickExpense = { openAddScreen(type = TransactionType.EXPENSE) },
                             onQuickIncome = { openAddScreen(type = TransactionType.INCOME) },
-                            onEditTransaction = { tx -> openAddScreen(editTx = tx) },
+                            onEditTransaction = { tx -> editTransaction(tx) },
                             onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
                             onSeedRandomData = { viewModel.seedRandomTestData() },
                             onClearAllData = { viewModel.clearAllData() }
                         )
-                    }
 
-                    AppScreen.UNDERSTAND -> {
-                        SpendingScreen(
+                        AppScreen.UNDERSTAND -> SpendingScreen(
                             uiState = uiState,
                             viewModel = viewModel,
-                            onEditTransaction = { tx -> openAddScreen(editTx = tx) },
+                            onEditTransaction = { tx -> editTransaction(tx) },
                             onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
                             onNavigateToReports = { currentScreen = AppScreen.REPORTS }
                         )
-                    }
 
-                    AppScreen.ADD -> {
-                        AddTransactionScreen(
+                        AppScreen.ADD -> AddTransactionScreen(
                             viewModel = viewModel,
                             editingTransaction = editingTransaction,
                             prefilledTitle = prefilledTitle,
@@ -253,18 +239,14 @@ fun KharchMainApp(viewModel: KharchViewModel) {
                                 currentScreen = AppScreen.HOME
                             }
                         )
-                    }
 
-                    AppScreen.REPORTS -> {
-                        ReportsScreen(
+                        AppScreen.REPORTS -> ReportsScreen(
                             uiState = uiState,
                             viewModel = viewModel,
-                            onTransactionClick = { tx -> openAddScreen(editTx = tx) }
+                            onTransactionClick = { tx -> editTransaction(tx) }
                         )
-                    }
 
-                    AppScreen.PLAN -> {
-                        PlanScreen(
+                        AppScreen.PLAN -> PlanScreen(
                             uiState = uiState,
                             viewModel = viewModel,
                             onPlanExpense = { itemName, amount, category ->
@@ -278,50 +260,59 @@ fun KharchMainApp(viewModel: KharchViewModel) {
                         )
                     }
                 }
-            }
 
-            // Receipt Scanner Dialog
-            if (showReceiptScanner) {
-                ReceiptScannerDialog(
-                    onDismiss = { showReceiptScanner = false },
-                    onReceiptExtracted = { title, amount, category, receiptUri ->
-                        showReceiptScanner = false
-                        openAddScreen(
-                            type = TransactionType.EXPENSE,
-                            title = title,
-                            amount = amount,
-                            category = category,
-                            receiptUri = receiptUri
-                        )
-                    }
-                )
+                if (showReceiptScanner) {
+                    ReceiptScannerDialog(
+                        onDismiss = { showReceiptScanner = false },
+                        onReceiptExtracted = { title, amount, category, receiptUri ->
+                            showReceiptScanner = false
+                            openAddScreen(
+                                type = TransactionType.EXPENSE,
+                                title = title,
+                                amount = amount,
+                                category = category,
+                                receiptUri = receiptUri
+                            )
+                        }
+                    )
+                }
             }
+        }
+
+        AnimatedVisibility(
+            visible = showSplash,
+            enter = fadeIn(tween(0)),
+            exit = fadeOut(tween(450))
+        ) {
+            KharchSplash(onFinished = { showSplash = false })
         }
     }
 }
 
+/**
+ * Floating navigation bar. The selected tab grows into a pill that shows its label;
+ * the centre button is the thing you do most: add a record.
+ */
 @Composable
 fun KharchBottomNavigation(
     currentScreen: AppScreen,
     onNavigate: (AppScreen) -> Unit
 ) {
-    Card(
+    val barShape = RoundedCornerShape(32.dp)
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .padding(horizontal = 14.dp, vertical = 6.dp)
-            .shadow(elevation = 12.dp, shape = RoundedCornerShape(26.dp), spotColor = Color.Black.copy(alpha = 0.1f)),
-        shape = RoundedCornerShape(26.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+                .clip(barShape)
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), barShape)
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             NavItem(
@@ -332,7 +323,6 @@ fun KharchBottomNavigation(
                 testTag = "nav_home",
                 onClick = { onNavigate(AppScreen.HOME) }
             )
-
             NavItem(
                 label = "Activity",
                 selected = currentScreen == AppScreen.ACTIVITY,
@@ -342,33 +332,31 @@ fun KharchBottomNavigation(
                 onClick = { onNavigate(AppScreen.ACTIVITY) }
             )
 
-            // Center Prominent Add Button
             Box(
                 modifier = Modifier
-                    .size(48.dp)
+                    .size(52.dp)
+                    .pressable(pressedScale = 0.9f) { onNavigate(AppScreen.ADD) }
                     .clip(CircleShape)
                     .background(EmeraldPrimary)
-                    .clickable { onNavigate(AppScreen.ADD) }
                     .testTag("nav_add"),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add Record",
-                    tint = Color.White,
-                    modifier = Modifier.size(26.dp)
+                    contentDescription = "Add record",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(28.dp)
                 )
             }
 
             NavItem(
-                label = "Analytics",
+                label = "Insights",
                 selected = currentScreen == AppScreen.UNDERSTAND || currentScreen == AppScreen.REPORTS,
                 selectedIcon = Icons.Filled.PieChart,
                 unselectedIcon = Icons.Outlined.PieChart,
                 testTag = "nav_understand",
                 onClick = { onNavigate(AppScreen.UNDERSTAND) }
             )
-
             NavItem(
                 label = "Plan",
                 selected = currentScreen == AppScreen.PLAN,
@@ -390,27 +378,38 @@ private fun NavItem(
     testTag: String,
     onClick: () -> Unit
 ) {
-    Column(
+    val tint = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+    Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp)
+            .pressable(pressedScale = 0.92f, onClick = onClick)
+            .clip(CircleShape)
+            .background(if (selected) EmeraldPrimary.copy(alpha = 0.14f) else Color.Transparent)
+            .animateContentSize(spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessMediumLow))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
             .testTag(testTag),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp)
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = if (selected) selectedIcon else unselectedIcon,
             contentDescription = label,
-            tint = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = tint,
             modifier = Modifier.size(22.dp)
         )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontSize = 11.sp
-        )
+        AnimatedVisibility(
+            visible = selected,
+            enter = expandHorizontally(tween(260)) + fadeIn(tween(260)),
+            exit = shrinkHorizontally(tween(200)) + fadeOut(tween(120))
+        ) {
+            Row {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = tint,
+                    maxLines = 1
+                )
+            }
+        }
     }
 }

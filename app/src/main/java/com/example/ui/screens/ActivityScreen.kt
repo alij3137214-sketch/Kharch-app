@@ -1,8 +1,9 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,24 +22,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
@@ -55,24 +49,25 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.data.model.TransactionEntity
+import com.example.data.model.TransactionType
+import com.example.ui.components.DayHeader
 import com.example.ui.components.ExportCsvDialog
+import com.example.ui.components.ScreenPadding
 import com.example.ui.components.TransactionDetailSheet
 import com.example.ui.components.TransactionItem
+import com.example.ui.components.dayLabel
+import com.example.ui.components.entrance
+import com.example.ui.components.formatRs
+import com.example.ui.components.pressable
 import com.example.ui.theme.EmeraldPrimary
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.viewmodel.KharchUiState
 import com.example.ui.viewmodel.KharchViewModel
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
- * Dedicated 'Recent Activity' Screen.
- * Provides complete transaction history, real-time search, type filtering,
- * financial totals, and transaction editing/deletion.
+ * Everything you've logged, grouped by day, searchable and filterable.
  */
 @Composable
 fun ActivityScreen(
@@ -86,7 +81,7 @@ fun ActivityScreen(
     onSeedRandomData: () -> Unit,
     onClearAllData: () -> Unit
 ) {
-    var selectedTransactionForDetail by remember { mutableStateOf<TransactionEntity?>(null) }
+    var selectedTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
     var showConfirmClearDialog by remember { mutableStateOf(false) }
     var showExportCsvDialog by remember { mutableStateOf(false) }
 
@@ -97,305 +92,175 @@ fun ActivityScreen(
         "TRANSFER" to "Transfers"
     )
 
-    // Summary calculations for filtered list
-    val filteredList = uiState.filteredTransactions
-    val totalInflow = remember(filteredList) {
-        filteredList.filter { it.type == "INCOME" }.sumOf { it.amount }
-    }
-    val totalOutflow = remember(filteredList) {
-        filteredList.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-    }
+    val filtered = uiState.filteredTransactions
+    val grouped = remember(filtered) { filtered.groupBy { dayLabel(it.timestamp) } }
+    val totalInflow = remember(filtered) { filtered.filter { it.type == TransactionType.INCOME.name }.sumOf { it.amount } }
+    val totalOutflow = remember(filtered) { filtered.filter { it.type == TransactionType.EXPENSE.name }.sumOf { it.amount } }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
             .testTag("activity_screen"),
-        contentPadding = PaddingValues(bottom = 24.dp)
+        contentPadding = PaddingValues(bottom = 120.dp)
     ) {
-        // Top Header
         item {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 14.dp),
+                    .padding(start = ScreenPadding, end = 8.dp, top = 18.dp, bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = "Recent Activity",
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(MaterialTheme.colorScheme.primaryContainer)
-                                .padding(horizontal = 8.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${filteredList.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }
-                    }
                     Text(
-                        text = "Complete transaction history & records",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Activity",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = "${filtered.size} ${if (filtered.size == 1) "record" else "records"}",
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    IconButton(
-                        onClick = { showExportCsvDialog = true },
-                        modifier = Modifier.testTag("activity_export_csv_btn")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FileDownload,
-                            contentDescription = "Export CSV",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                Row {
+                    IconButton(onClick = { showExportCsvDialog = true }, modifier = Modifier.testTag("activity_export_csv_btn")) {
+                        Icon(Icons.Default.FileDownload, contentDescription = "Export CSV", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
                     if (uiState.transactions.isNotEmpty()) {
-                        IconButton(
-                            onClick = { showConfirmClearDialog = true },
-                            modifier = Modifier.testTag("activity_clear_all_btn")
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.DeleteOutline,
-                                contentDescription = "Clear All Records",
-                                tint = ExpenseRed
-                            )
+                        IconButton(onClick = { showConfirmClearDialog = true }, modifier = Modifier.testTag("activity_clear_all_btn")) {
+                            Icon(Icons.Default.DeleteOutline, contentDescription = "Clear all records", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
             }
         }
 
-        // Summary Card (Inflow / Outflow)
         item {
-            Card(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 4.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                    .padding(horizontal = ScreenPadding)
+                    .entrance(0),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceAround,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Total Inflow",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "+Rs. ${String.format(Locale.getDefault(), "%,.0f", totalInflow)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = IncomeGreen
-                        )
-                    }
-
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(30.dp)
-                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    )
-
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Total Outflow",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "-Rs. ${String.format(Locale.getDefault(), "%,.0f", totalOutflow)}",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ExpenseRed
-                        )
-                    }
-                }
+                SummaryTile("In", "+" + formatRs(totalInflow), IncomeGreen, Modifier.weight(1f))
+                SummaryTile("Out", "−" + formatRs(totalOutflow), ExpenseRed, Modifier.weight(1f))
             }
+            Spacer(modifier = Modifier.height(14.dp))
         }
 
-        // Search Bar
         item {
             OutlinedTextField(
                 value = uiState.searchQuery,
                 onValueChange = { viewModel.setSearchQuery(it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp)
+                    .padding(horizontal = ScreenPadding)
                     .testTag("activity_search_text_field"),
-                placeholder = { Text("Search by title, category, note...") },
-                leadingIcon = {
-                    Icon(imageVector = Icons.Default.Search, contentDescription = "Search")
-                },
+                placeholder = { Text("Search records") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                 trailingIcon = {
                     if (uiState.searchQuery.isNotBlank()) {
                         IconButton(onClick = { viewModel.setSearchQuery("") }) {
-                            Icon(imageVector = Icons.Default.Clear, contentDescription = "Clear search")
+                            Icon(Icons.Default.Clear, contentDescription = "Clear search")
                         }
                     }
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(18.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = EmeraldPrimary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedContainerColor = MaterialTheme.colorScheme.surface,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    cursorColor = EmeraldPrimary
                 )
             )
+            Spacer(modifier = Modifier.height(12.dp))
         }
 
-        // Filter Chips Row
         item {
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 2.dp),
+                contentPadding = PaddingValues(horizontal = ScreenPadding),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(filterOptions) { (key, label) ->
-                    val isSelected = uiState.selectedFilterType == key
-                    FilterChip(
-                        selected = isSelected,
-                        onClick = { viewModel.setFilterType(key) },
-                        label = { Text(label, style = MaterialTheme.typography.labelMedium) },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                    FilterPill(label = label, selected = uiState.selectedFilterType == key) {
+                        viewModel.setFilterType(key)
+                    }
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Transactions List or Empty State
-        if (filteredList.isEmpty()) {
+        if (filtered.isEmpty()) {
             item {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 40.dp),
-                    contentAlignment = Alignment.Center
+                        .padding(horizontal = ScreenPadding, vertical = 56.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(64.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.ReceiptLong,
-                                contentDescription = "No Records",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-
-                        Text(
-                            text = if (uiState.searchQuery.isNotBlank()) "No matching transactions" else "No transactions recorded yet",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
+                        Icon(
+                            imageVector = Icons.Default.ReceiptLong,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(28.dp)
                         )
-
-                        Text(
-                            text = if (uiState.searchQuery.isNotBlank()) "Try checking your spelling or clearing filters." else "Log your expenses or load sample data to get started.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(10.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = onQuickExpense,
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary),
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.testTag("activity_empty_add_expense_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Add,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add Expense", style = MaterialTheme.typography.labelMedium)
-                            }
-
-                            OutlinedButton(
-                                onClick = onSeedRandomData,
-                                shape = RoundedCornerShape(12.dp),
-                                modifier = Modifier.testTag("activity_empty_seed_data_btn")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Sample Data", style = MaterialTheme.typography.labelMedium)
-                            }
-                        }
+                    }
+                    Text(
+                        text = if (uiState.searchQuery.isNotBlank()) "No matches" else "No records yet",
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    Text(
+                        text = if (uiState.searchQuery.isNotBlank()) "Try a different word or clear the filter." else "Log an expense or income to get started.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Button(
+                            onClick = onQuickExpense,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldPrimary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                            modifier = Modifier.testTag("activity_empty_add_expense_btn")
+                        ) { Text("Add expense") }
+                        TextButton(
+                            onClick = onSeedRandomData,
+                            modifier = Modifier.testTag("activity_empty_seed_data_btn")
+                        ) { Text("Try sample data") }
                     }
                 }
             }
         } else {
-            items(filteredList, key = { it.id }) { tx ->
-                TransactionItem(
-                    transaction = tx,
-                    onClick = { selectedTransactionForDetail = tx }
-                )
+            grouped.forEach { (label, dayItems) ->
+                item(key = "hdr_$label") {
+                    DayHeader(
+                        label = label,
+                        total = dayItems.filter { it.type == TransactionType.EXPENSE.name }.sumOf { it.amount }
+                    )
+                }
+                items(dayItems, key = { it.id }) { tx ->
+                    TransactionItem(transaction = tx, onClick = { selectedTransaction = tx })
+                }
             }
         }
     }
 
-    // Confirmation Dialog to Clear Data
     if (showConfirmClearDialog) {
         AlertDialog(
             onDismissRequest = { showConfirmClearDialog = false },
-            title = {
-                Text(
-                    text = "Clear All Transactions?",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text("Are you sure you want to delete all transaction records? This action cannot be undone.")
-            },
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("Clear all records?", fontWeight = FontWeight.Bold) },
+            text = { Text("Every transaction will be deleted. This can't be undone.") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -404,38 +269,32 @@ fun ActivityScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
                     modifier = Modifier.testTag("confirm_clear_activity_dialog_btn")
-                ) {
-                    Text("Clear All")
-                }
+                ) { Text("Delete all") }
             },
             dismissButton = {
                 TextButton(
                     onClick = { showConfirmClearDialog = false },
                     modifier = Modifier.testTag("cancel_clear_activity_dialog_btn")
-                ) {
-                    Text("Cancel")
-                }
+                ) { Text("Cancel") }
             }
         )
     }
 
-    // Detail Bottom Sheet
-    if (selectedTransactionForDetail != null) {
+    selectedTransaction?.let { tx ->
         TransactionDetailSheet(
-            transaction = selectedTransactionForDetail!!,
-            onDismiss = { selectedTransactionForDetail = null },
-            onEdit = { tx ->
-                selectedTransactionForDetail = null
-                onEditTransaction(tx)
+            transaction = tx,
+            onDismiss = { selectedTransaction = null },
+            onEdit = {
+                selectedTransaction = null
+                onEditTransaction(it)
             },
-            onDelete = { tx ->
-                selectedTransactionForDetail = null
-                onDeleteTransaction(tx)
+            onDelete = {
+                selectedTransaction = null
+                onDeleteTransaction(it)
             }
         )
     }
 
-    // Export CSV Dialog
     if (showExportCsvDialog) {
         val currentCalendar = remember { java.util.Calendar.getInstance() }
         val currentMonthLabel = remember(currentCalendar) {
@@ -448,4 +307,49 @@ fun ActivityScreen(
             onDismiss = { showExportCsvDialog = false }
         )
     }
+}
+
+@Composable
+private fun SummaryTile(label: String, value: String, color: Color, modifier: Modifier = Modifier) {
+    val shape = RoundedCornerShape(20.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f), shape)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(7.dp).clip(CircleShape).background(color))
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(value, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+    }
+}
+
+@Composable
+private fun FilterPill(label: String, selected: Boolean, onClick: () -> Unit) {
+    val bg by animateColorAsState(
+        if (selected) EmeraldPrimary.copy(alpha = 0.16f) else Color.Transparent,
+        tween(200),
+        label = "pill_bg"
+    )
+    val border by animateColorAsState(
+        if (selected) EmeraldPrimary.copy(alpha = 0.8f) else MaterialTheme.colorScheme.outline,
+        tween(200),
+        label = "pill_border"
+    )
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        color = if (selected) EmeraldPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .pressable(pressedScale = 0.95f, onClick = onClick)
+            .clip(CircleShape)
+            .background(bg)
+            .border(1.dp, border, CircleShape)
+            .padding(horizontal = 16.dp, vertical = 9.dp)
+    )
 }
