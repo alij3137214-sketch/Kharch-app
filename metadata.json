@@ -1,0 +1,6 @@
+{
+  "name": "Kharch",
+  "description": "Personal expense tracking and financial planning app built around Track, Understand, Plan.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
