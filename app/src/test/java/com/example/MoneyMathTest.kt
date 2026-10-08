@@ -259,6 +259,17 @@ class MoneyMathTest {
     }
 
     @Test
+    fun greeting_followsTheClockForEveryHour() {
+        val expected = mapOf(
+            0 to "Good night", 4 to "Good night", 5 to "Good morning", 11 to "Good morning",
+            12 to "Good afternoon", 16 to "Good afternoon", 17 to "Good evening", 22 to "Good evening", 23 to "Good night"
+        )
+        expected.forEach { (hour, words) -> assertEquals("hour $hour", words, MoneyMath.greetingFor(hour)) }
+        // Every hour of the day has a greeting and the day is covered without gaps
+        assertEquals(24, (0..23).map { MoneyMath.greetingFor(it) }.size)
+    }
+
+    @Test
     fun changeText_isSimple() {
         assertEquals("20% more than before", MoneyMath.changeText(120.0, 100.0))
         assertEquals("25% less than before", MoneyMath.changeText(75.0, 100.0))

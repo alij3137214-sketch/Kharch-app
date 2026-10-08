@@ -39,6 +39,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -548,14 +550,14 @@ private fun SmallAction(text: String, onClick: () -> Unit, quiet: Boolean = fals
 
 @Composable
 private fun HomeHeader(name: String, onOpenSettings: () -> Unit, onOpenDeleteData: () -> Unit) {
-    val greeting = remember {
-        when (Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
-            in 5..11 -> "Good morning"
-            in 12..16 -> "Good afternoon"
-            in 17..21 -> "Good evening"
-            else -> "Good night"
+    // Follows the phone clock, and keeps following it if the app stays open past the hour.
+    val hour by produceState(initialValue = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) {
+        while (true) {
+            delay(30_000)
+            value = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
         }
     }
+    val greeting = MoneyMath.greetingFor(hour)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -565,11 +567,15 @@ private fun HomeHeader(name: String, onOpenSettings: () -> Unit, onOpenDeleteDat
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(text = greeting, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            // The name is whatever the person typed. If they skipped it, a gentle way to add it.
             Text(
-                text = if (name.isBlank()) "Your money" else name,
+                text = if (name.isBlank()) "Add your name" else name,
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
+                color = if (name.isBlank()) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                modifier = Modifier
+                    .pressable(pressedScale = 0.97f, onClick = onOpenSettings)
+                    .testTag("home_name")
             )
         }
         IconButton(onClick = onOpenDeleteData, modifier = Modifier.testTag("home_delete_data_button")) {

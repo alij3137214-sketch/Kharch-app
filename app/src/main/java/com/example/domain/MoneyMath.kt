@@ -56,6 +56,16 @@ data class PeriodSummary(
 
 object MoneyMath {
 
+    // ---- Greeting --------------------------------------------------------------------------
+
+    /** The words for the time of day. [hour] is 0 to 23 on the phone's clock. */
+    fun greetingFor(hour: Int): String = when (hour) {
+        in 5..11 -> "Good morning"
+        in 12..16 -> "Good afternoon"
+        in 17..22 -> "Good evening"
+        else -> "Good night"
+    }
+
     // ---- Dates -----------------------------------------------------------------------------
 
     fun startOfDay(timestamp: Long): Long = Calendar.getInstance().apply {
