@@ -149,7 +149,7 @@ class KharchViewModel(
         viewModelScope.launch {
             repository.insertTransaction(
                 TransactionEntity(
-                    title = title.ifBlank { "Expense" },
+                    title = title.ifBlank { "Spending" },
                     amount = amount,
                     type = TransactionType.EXPENSE.name,
                     category = category,

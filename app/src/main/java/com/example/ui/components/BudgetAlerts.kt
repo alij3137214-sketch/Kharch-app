@@ -98,10 +98,10 @@ fun HomeBudgetAlertBanner(
     val count = if (isCritical) exceededBudgets.size else warningBudgets.size
 
     val title = when {
-        isCritical && count == 1 -> "${first.category} is over budget"
-        isCritical -> "$count categories are over budget"
+        isCritical && count == 1 -> "${first.category} is over its limit"
+        isCritical -> "$count kinds of spending are over their limit"
         count == 1 -> "${first.category} is close to its limit"
-        else -> "$count categories are close to their limit"
+        else -> "$count kinds of spending are close to their limit"
     }
     val detail = if (isCritical) {
         "Rs. ${String.format(Locale.getDefault(), "%,.0f", first.overAmount)} over your limit"

@@ -93,10 +93,10 @@ fun ExportCsvDialog(
         if (uri != null) {
             val success = CsvExporter.writeCsvToUri(context, uri, csvContent)
             if (success) {
-                Toast.makeText(context, "Exported successfully as CSV", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Saved as a file", Toast.LENGTH_SHORT).show()
                 onDismiss()
             } else {
-                Toast.makeText(context, "Failed to write CSV file", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Could not save the file", Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -126,7 +126,7 @@ fun ExportCsvDialog(
 
                 Column {
                     Text(
-                        text = "Export Monthly CSV",
+                        text = "Save as a file",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -146,7 +146,7 @@ fun ExportCsvDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "Export your monthly expenses into a spreadsheet-ready CSV file compatible with Google Sheets, Excel, and Notion.",
+                    text = "Save what you spent as a file. You can open it in Excel or Google Sheets.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -173,7 +173,7 @@ fun ExportCsvDialog(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "${expenses.size} expenses",
+                                text = "${expenses.size} records",
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             )
@@ -181,7 +181,7 @@ fun ExportCsvDialog(
 
                         Column(horizontalAlignment = Alignment.End) {
                             Text(
-                                text = "Total Amount",
+                                text = "Total",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -203,7 +203,7 @@ fun ExportCsvDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "CSV Preview ($defaultFilename)",
+                            text = "Preview ($defaultFilename)",
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             fontWeight = FontWeight.SemiBold
@@ -213,7 +213,7 @@ fun ExportCsvDialog(
                             onClick = {
                                 CsvExporter.copyCsvToClipboard(context, csvContent)
                                 copiedToClipboard = true
-                                Toast.makeText(context, "Copied CSV to clipboard", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
                             },
                             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
                             modifier = Modifier.testTag("copy_csv_button")
@@ -263,12 +263,12 @@ fun ExportCsvDialog(
                             val shareIntent = CsvExporter.createShareCsvIntent(
                                 context = context,
                                 file = cachedFile,
-                                subject = "Kharch Expenses - $monthLabel"
+                                subject = "Kharch spending - $monthLabel"
                             )
-                            context.startActivity(Intent.createChooser(shareIntent, "Open or Share CSV with"))
+                            context.startActivity(Intent.createChooser(shareIntent, "Send the file with"))
                             onDismiss()
                         } catch (e: Exception) {
-                            Toast.makeText(context, "Error sharing file: ${e.message}", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Could not share the file", Toast.LENGTH_SHORT).show()
                         }
                     },
                     modifier = Modifier
@@ -283,7 +283,7 @@ fun ExportCsvDialog(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Share / Open with App (Sheets, Excel)")
+                    Text("Send or open in an app")
                 }
 
                 // Action 2: Save File to Device
@@ -302,7 +302,7 @@ fun ExportCsvDialog(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Save to Device...")
+                    Text("Save on this phone")
                 }
             }
         },
@@ -312,7 +312,7 @@ fun ExportCsvDialog(
                 onClick = onDismiss,
                 modifier = Modifier.testTag("close_export_dialog_btn")
             ) {
-                Text("Close")
+                Text("Done")
             }
         }
     )
